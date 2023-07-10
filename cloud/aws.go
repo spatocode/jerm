@@ -64,6 +64,10 @@ func (l *Lambda) CreateFunction(file string) {
 	}
 }
 
+func (l *Lambda) SetFunctionName(name string) {
+	l.name = name
+}
+
 func (l *Lambda) ensureIsNotAlreadyDeployed() {
 	versions := l.getLambdaVersionsByFuction()
 	if len(versions) > 0 {

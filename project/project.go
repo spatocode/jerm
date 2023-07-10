@@ -92,20 +92,28 @@ func (p *Project) Init() {
 func (p *Project) DeployAWS() {
 	p.config = p.mapJSONConfigToStruct()
 	lambda := cloud.NewLambda()
+	lambda.SetFunctionName(p.config.ProjectName)
 	p.cloud = lambda
 	p.cloud.CheckPermissions()
 	p.Package()
-	lambda.Deploy()
+	p.cloud.Deploy()
 }
 
 func (p *Project) Package() {
-	fmt.Println("Packaging bulaba project...")
+	fmt.Println("Preparing bulaba project for packaging...")
 	cwd, err := os.Getwd()
 	if err != nil {
 		utils.BulabaException(err)
 	}
 
 	archiveFile := fmt.Sprintf("%s-package.zip", p.config.ProjectName)
+	if _, err := os.Stat(archiveFile); err == nil {
+		fmt.Println("Packaged project detected!")
+		return
+	}
+
+	fmt.Println("Packaging bulaba project...")
+
 	archivePath := path.Join(cwd, archiveFile)
 
 	venv := p.getVirtualEnvironment()
