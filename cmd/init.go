@@ -5,7 +5,7 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
-	"github.com/spatocode/bulaba/create"
+	"github.com/spatocode/bulaba/project"
 )
 
 // initCmd represents the init command
@@ -14,7 +14,7 @@ var initCmd = &cobra.Command{
 	Short: "Initialize a bulaba application",
 	Long:  "Initialize a bulaba application",
 	Run: func(cmd *cobra.Command, args []string) {
-		project := create.NewProject()
+		project := project.NewProject()
 		project.Init()
 	},
 }

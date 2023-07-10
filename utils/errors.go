@@ -5,7 +5,7 @@ import (
 	"os"
 )
 
-func BulabaException(message ...string) {
-	fmt.Println(message)
+func BulabaException(message ...any) {
+	fmt.Println(message...)
 	os.Exit(1)
 }

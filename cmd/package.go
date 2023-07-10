@@ -4,18 +4,17 @@ Copyright © 2023 Ekene Izukanne <ekeneizukanne@gmail.com>
 package cmd
 
 import (
-	"fmt"
-
+	"github.com/spatocode/bulaba/project"
 	"github.com/spf13/cobra"
 )
 
-// packageCmd represents the package command
 var packageCmd = &cobra.Command{
 	Use:   "package",
 	Short: "Build a deployment package",
 	Long:  "Build a deployment package",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("package called")
+		p := project.NewProject()
+		p.Package()
 	},
 }
 
