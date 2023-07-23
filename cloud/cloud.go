@@ -1,7 +1,7 @@
 package cloud
 
 const (
-	awsDocs = "https://docs.aws.amazon.com/sdk-for-go/v1/developer-guide/configuring-sdk.html#specifying-credentials"
+	awsDocs         = "https://docs.aws.amazon.com/sdk-for-go/v1/developer-guide/configuring-sdk.html#specifying-credentials"
 	awsAssumePolicy = `{
 		"Version": "2012-10-17",
 		"Statement": [
@@ -110,7 +110,14 @@ const (
 )
 
 type Platform interface {
-	Deploy()
-	CreateFunction(string)
+	Deploy(string)
+	CreateFunctionEntry(string)
 	CheckPermissions()
+}
+
+type CloudConfig interface {
+	ToJson()
+	GetFunctionName() string
+	GetRuntime() string
+	GetBucket() string
 }

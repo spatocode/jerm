@@ -2,6 +2,7 @@ package utils
 
 import (
 	"fmt"
+	"math/rand"
 	"os"
 )
 
@@ -11,4 +12,10 @@ func EnsureProjectExists() {
 		msg := fmt.Sprintf("Error: Project already initialized with a %s file\n", initFilename)
 		BulabaException(msg)
 	}
+}
+
+func GenerateRandomNumber() int {
+	low := 10000000
+	high := 99999999
+	return low + rand.Intn(high-low)
 }

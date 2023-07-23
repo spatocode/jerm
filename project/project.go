@@ -22,20 +22,21 @@ import (
 )
 
 var (
-	excludedFiles = []string{
-		"*.zip",
-		"*.exe",
-		"*.git",
-		"*.DS_Store",
+	excludedGlobs = []string{
+		".zip",
+		".exe",
+		".git",
+		".DS_Store",
 		"pip",
 		"venv",
-		"__pycache__/*",
-		"*.hg",
-		"*.Python",
-		"setuputils*",
-		"*.tar.gz",
-		".git/*",
-		"docutils*",
+		"__pycache__",
+		".hg",
+		".Python",
+		"setuputils",
+		"tar.gz",
+		".git",
+		".vscode",
+		"docutils",
 	}
 )
 
@@ -44,8 +45,7 @@ type Project struct {
 	cloud  cloud.Platform
 }
 
-func NewProject() *Project {
-	// TODO: Detect project stack
+func LoadProject() *Project {
 	workDir, err := os.Getwd()
 	if err != nil {
 		utils.BulabaException(err.Error())
@@ -54,7 +54,7 @@ func NewProject() *Project {
 	projectName := splitPath[len(splitPath)-1]
 	config := &Config{
 		Environment: Environment,
-		S3Bucket:    S3Bucket,
+		Bucket:      fmt.Sprintf("bulaba-%d", utils.GenerateRandomNumber()),
 		ProjectName: projectName,
 	}
 	p := &Project{
@@ -68,48 +68,60 @@ func (p *Project) Init() {
 	utils.EnsureProjectExists()
 	p.printInitMessage()
 
-	env := p.getStdIn(fmt.Sprintf("Deployment environment: (%s) [dev, staging, production]", Environment))
+	fmt.Println("Specify the name for this production stage. [dev, staging, production]")
+	env := p.getStdIn(fmt.Sprintf("Deployment environment: (%s)", Environment))
 	if env != "\n" {
 		fmt.Println(env != "\n", env != "")
 		// TODO: Check is correct name
 		p.config.Environment = env
 	}
 
-	awsConfig := cloud.NewLambda().AwsConfig
-	p.config.AwsRegion = awsConfig.Region
 	p.config.ProjectName = fmt.Sprintf("%s-%s", p.config.ProjectName, p.config.Environment)
+	awsConfig := cloud.LoadLambda(p.config).AwsConfig
+	p.config.Region = awsConfig.Region
 
-	bucket := p.getStdIn(fmt.Sprintf("S3 Bucket: (%s)", S3Bucket))
+	fmt.Println("S3 Bucket is needed to upload your deployment. If you have none yet, we would create one.")
+	bucket := p.getStdIn(fmt.Sprintf("S3 Bucket: (%s)", p.config.Bucket))
 	if bucket != "\n" {
 		// TODO: Enforce bucket naming restrictions
 		// https://docs.aws.amazon.com/AmazonS3/latest/dev/BucketRestrictions.html#bucketnamingrules
-		p.config.S3Bucket = bucket
+		p.config.Bucket = bucket
 	}
 
-	p.writeConfigFile(p.config)
+	p.config.ToJson()
 }
 
 func (p *Project) DeployAWS() {
 	p.config = p.mapJSONConfigToStruct()
-	lambda := cloud.NewLambda()
-	lambda.SetFunctionName(p.config.ProjectName)
+	lambda := cloud.LoadLambda(p.config)
 	p.cloud = lambda
 	p.cloud.CheckPermissions()
-	p.Package()
-	p.cloud.Deploy()
+	file := p.packageProject()
+	p.cloud.Deploy(file)
+	fmt.Println("Done!")
 }
 
 func (p *Project) Package() {
+	lambda := cloud.LoadLambda(p.config)
+	p.cloud = lambda
+	p.packageProject()
+	fmt.Println("Done!")
+}
+
+func (p *Project) packageProject() string {
 	fmt.Println("Preparing bulaba project for packaging...")
+	if p.cloud == nil {
+		lambda := cloud.LoadLambda(p.config)
+		p.cloud = lambda
+	}
 	cwd, err := os.Getwd()
 	if err != nil {
 		utils.BulabaException(err)
 	}
 
-	archiveFile := fmt.Sprintf("%s-package.zip", p.config.ProjectName)
+	archiveFile := fmt.Sprintf("%s%s", p.config.ProjectName, archiveFileSuffix)
 	if _, err := os.Stat(archiveFile); err == nil {
-		fmt.Println("Packaged project detected!")
-		return
+		utils.BulabaException("Packaged project detected!")
 	}
 
 	fmt.Println("Packaging bulaba project...")
@@ -129,9 +141,11 @@ func (p *Project) Package() {
 
 	p.copyNecessaryFilesToTempDir(cwd, tempDir)
 	p.copyNecessaryFilesToTempDir(sitePackages, tempDir)
-	p.cloud.CreateFunction(fmt.Sprintf("%shandler.py", tempDir))
+	f := filepath.Join(tempDir, "handler.py")
+	p.cloud.CreateFunctionEntry(f)
 
 	p.archivePackage(archivePath, tempDir)
+	return archivePath
 }
 
 func (p *Project) mapJSONConfigToStruct() *Config {
@@ -157,7 +171,7 @@ func (p *Project) mapJSONConfigToStruct() *Config {
 func (p *Project) getPythonVersion() string {
 	pipVersion, err := p.getShellCommandOutput("pip", "-V")
 	if err != nil {
-		utils.BulabaException(err)	
+		utils.BulabaException(err)
 	}
 	s := strings.Split(pipVersion, " ")
 	pythonVersion := strings.ReplaceAll(s[len(s)-1], ")", "")
@@ -221,7 +235,9 @@ func (p *Project) archivePackage(archivePath, dir string) {
 		}
 		defer f.Close()
 
-		w, err := writer.Create(path)
+		sPath := strings.Split(path, dir)
+		zipContentPath := sPath[len(sPath)-1]
+		w, err := writer.Create(zipContentPath)
 		if err != nil {
 			return err
 		}
@@ -240,8 +256,12 @@ func (p *Project) archivePackage(archivePath, dir string) {
 func (p *Project) copyNecessaryFilesToTempDir(src, dest string) {
 	opt := cp.Options{
 		Skip: func(srcinfo os.FileInfo, src, dest string) (bool, error) {
-			for _, file := range excludedFiles {
-				return strings.HasSuffix(src, file), nil
+			for _, glob := range excludedGlobs {
+				matchFile := strings.HasSuffix(src, glob) ||
+					strings.HasPrefix(src, glob) || src == glob
+				if matchFile {
+					return matchFile, nil
+				}
 			}
 			return false, nil
 		},
@@ -249,23 +269,6 @@ func (p *Project) copyNecessaryFilesToTempDir(src, dest string) {
 	err := cp.Copy(src, dest, opt)
 	if err != nil {
 		utils.BulabaException(err)
-	}
-}
-
-func (p *Project) writeConfigFile(c *Config) {
-	b, err := json.Marshal(*c)
-	if err != nil {
-		utils.BulabaException(err.Error())
-	}
-
-	f, err := os.Create("bulaba.json")
-	if err != nil {
-		utils.BulabaException(err.Error())
-	}
-
-	_, err = f.Write(b)
-	if err != nil {
-		utils.BulabaException(err.Error())
 	}
 }
 

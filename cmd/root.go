@@ -1,6 +1,5 @@
 /*
 Copyright © 2023 Ekene Izukanne <ekeneizukanne@gmail.com>
-
 */
 package cmd
 
@@ -10,13 +9,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
-
-
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "bulaba",
-	Short: "Deploy serverless applications to the cloud",
-	Long: `Deploy serverless applications to the cloud`,
+	Use:     "bulaba",
+	Short:   "Deploy serverless applications to the cloud",
+	Long:    `Deploy serverless applications to the cloud`,
 	Version: "0.0.1",
 }
 
@@ -40,5 +37,3 @@ func init() {
 	// when this action is called directly.
 	// rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
-
-

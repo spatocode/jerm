@@ -17,7 +17,7 @@ var deployCmd = &cobra.Command{
 	Long:  "Deploy an application",
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) == 1 && strings.ToLower(args[0]) == "aws" {
-			lambda := project.NewProject()
+			lambda := project.LoadProject()
 			lambda.DeployAWS()
 		} else {
 			utils.BulabaException("Unknown arg. Expected a cloud platform [aws]")

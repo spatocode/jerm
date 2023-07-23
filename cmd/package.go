@@ -13,7 +13,7 @@ var packageCmd = &cobra.Command{
 	Short: "Build a deployment package",
 	Long:  "Build a deployment package",
 	Run: func(cmd *cobra.Command, args []string) {
-		p := project.NewProject()
+		p := project.LoadProject()
 		p.Package()
 	},
 }
