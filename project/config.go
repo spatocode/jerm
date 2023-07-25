@@ -9,13 +9,13 @@ import (
 )
 
 var (
-	Environment       = "dev"
+	Stage             = "dev"
 	InitFilename      = "bulaba.json"
 	archiveFileSuffix = fmt.Sprintf("-pkg%d.zip", utils.GenerateRandomNumber())
 )
 
 type Config struct {
-	Environment   string `json:"environment"`
+	Stage         string `json:"stage"`
 	Bucket        string `json:"s3_bucket"`
 	ProjectName   string `json:"project_name"`
 	Region        string `json:"region"`
@@ -33,6 +33,10 @@ func (c *Config) GetFunctionName() string {
 
 func (c *Config) GetBucket() string {
 	return c.Bucket
+}
+
+func (c *Config) GetStage() string {
+	return c.Stage
 }
 
 func (c *Config) ToJson() {

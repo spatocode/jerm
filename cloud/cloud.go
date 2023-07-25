@@ -120,4 +120,5 @@ type CloudConfig interface {
 	GetFunctionName() string
 	GetRuntime() string
 	GetBucket() string
+	GetStage() string
 }

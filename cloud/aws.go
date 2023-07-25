@@ -9,12 +9,15 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/apigatewayv2"
+	"github.com/aws/aws-sdk-go-v2/service/apigatewayv2/types"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	iamTypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
 	lambdaTypes "github.com/aws/aws-sdk-go-v2/service/lambda/types"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 
 	"github.com/spatocode/bulaba/utils"
 )
@@ -60,6 +63,7 @@ func (l *Lambda) Deploy(zipPath string) {
 	l.ensureIsNotAlreadyDeployed()
 	l.uploadFileToS3(zipPath)
 	l.createLambdaFunction(zipPath)
+	l.createAPIGateway()
 }
 
 func (l *Lambda) CreateFunctionEntry(file string) {
@@ -75,6 +79,65 @@ func (l *Lambda) CreateFunctionEntry(file string) {
 		utils.BulabaException(err.Error())
 	}
 	l.functionHandler = file
+}
+
+func (l *Lambda) createAPIGateway() {
+	apiGatewayClient := apigatewayv2.NewFromConfig(l.AwsConfig)
+	apiID, err := l.createAPI(apiGatewayClient)
+	if err != nil {
+		utils.BulabaException(err)
+	}
+
+	lambdaClient := lambda.NewFromConfig(l.AwsConfig)
+	if err := l.createLambdaIntegration(apiGatewayClient, lambdaClient, apiID); err != nil {
+		utils.BulabaException(err)
+	}
+
+	if err := l.createStage(apiGatewayClient, apiID); err != nil {
+		utils.BulabaException(err)
+	}
+
+	fmt.Printf("API Gateway URL: https://%s.execute-api.%s.amazonaws.com/%s\n", *apiID, l.AwsConfig.Region, l.config.GetStage())
+}
+
+func (l *Lambda) createAPI(apiGatewayClient *apigatewayv2.Client) (*string, error) {
+	resp, err := apiGatewayClient.CreateApi(context.TODO(), &apigatewayv2.CreateApiInput{
+		Name:         aws.String(l.config.GetFunctionName()),
+		ProtocolType: types.ProtocolType("HTTP"),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return resp.ApiId, nil
+}
+
+func (l *Lambda) getAccountID() string {
+	stsClient := sts.NewFromConfig(l.AwsConfig)
+	resp, err := stsClient.GetCallerIdentity(context.TODO(), &sts.GetCallerIdentityInput{})
+	if err != nil {
+		utils.BulabaException(err)
+	}
+	return *resp.Account
+}
+
+func (l *Lambda) createLambdaIntegration(apiGatewayClient *apigatewayv2.Client, lambdaClient *lambda.Client, apiID *string) error {
+	lambdaARN := fmt.Sprintf("arn:aws:lambda:%s:%s:function:%s", l.AwsConfig.Region, l.getAccountID(), l.config.GetFunctionName())
+	_, err := apiGatewayClient.CreateIntegration(context.TODO(), &apigatewayv2.CreateIntegrationInput{
+		ApiId:                apiID,
+		IntegrationType:      types.IntegrationTypeAwsProxy,
+		IntegrationUri:       &lambdaARN,
+		IntegrationMethod:    aws.String("POST"),
+		PayloadFormatVersion: aws.String("1.0"),
+	})
+	return err
+}
+
+func (l *Lambda) createStage(apiGatewayClient *apigatewayv2.Client, apiID *string) error {
+	_, err := apiGatewayClient.CreateStage(context.TODO(), &apigatewayv2.CreateStageInput{
+		ApiId:     apiID,
+		StageName: aws.String(l.config.GetStage()),
+	})
+	return err
 }
 
 func (l *Lambda) createS3Bucket(client *s3.Client, isConfig bool) error {

@@ -53,7 +53,7 @@ func LoadProject() *Project {
 	splitPath := strings.Split(workDir, "/")
 	projectName := splitPath[len(splitPath)-1]
 	config := &Config{
-		Environment: Environment,
+		Stage:       Stage,
 		Bucket:      fmt.Sprintf("bulaba-%d", utils.GenerateRandomNumber()),
 		ProjectName: projectName,
 	}
@@ -68,15 +68,15 @@ func (p *Project) Init() {
 	utils.EnsureProjectExists()
 	p.printInitMessage()
 
-	fmt.Println("Specify the name for this production stage. [dev, staging, production]")
-	env := p.getStdIn(fmt.Sprintf("Deployment environment: (%s)", Environment))
+	fmt.Println("Specify the name for this deployment stage. [dev, staging, prod]")
+	env := p.getStdIn(fmt.Sprintf("Deployment stage: (%s)", Stage))
 	if env != "\n" {
 		fmt.Println(env != "\n", env != "")
 		// TODO: Check is correct name
-		p.config.Environment = env
+		p.config.Stage = env
 	}
 
-	p.config.ProjectName = fmt.Sprintf("%s-%s", p.config.ProjectName, p.config.Environment)
+	p.config.ProjectName = fmt.Sprintf("%s-%s", p.config.ProjectName, p.config.Stage)
 	awsConfig := cloud.LoadLambda(p.config).AwsConfig
 	p.config.Region = awsConfig.Region
 
