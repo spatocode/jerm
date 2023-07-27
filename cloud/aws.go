@@ -6,11 +6,16 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/apigatewayv2"
 	"github.com/aws/aws-sdk-go-v2/service/apigatewayv2/types"
+	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
+	cwTypes "github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs/types"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	iamTypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
@@ -57,6 +62,93 @@ func (l *Lambda) getAWSConfig() (aws.Config, aws.Credentials) {
 		utils.BulabaException(err.Error())
 	}
 	return cfg, creds
+}
+
+func (l *Lambda) Logs() {
+	startTime := int64(time.Millisecond*100000)
+	prevStart := startTime
+	for {
+		logsEvents := l.getLogs(startTime)
+		var filteredLogs []cwTypes.FilteredLogEvent
+		for _, event := range logsEvents {
+			if *event.Timestamp > prevStart {
+				filteredLogs = append(filteredLogs, event)
+			}
+		}
+		l.printLogs(filteredLogs)
+		if filteredLogs != nil {
+			prevStart = *filteredLogs[len(filteredLogs)-1].Timestamp
+		}
+		time.Sleep(time.Second)
+	}
+}
+
+func (l *Lambda) printLogs(logs []cwTypes.FilteredLogEvent) {
+	for _, log := range logs {
+		message := log.Message
+		time := time.Unix(*log.Timestamp, 0)
+		if strings.Contains(*message, "START RequestId") ||
+			strings.Contains(*message, "REPORT RequestId") ||
+			strings.Contains(*message, "END RequestId") {
+			continue
+		}
+		fmt.Printf("[%s] %s\n", time, strings.TrimSpace(*message))
+	}
+}
+
+func (l *Lambda) getLogs(startTime int64) []cwTypes.FilteredLogEvent {
+	var (
+		streamNames []string
+		response *cloudwatchlogs.FilterLogEventsOutput
+		logEvents []cwTypes.FilteredLogEvent
+	)
+	name := fmt.Sprintf("/aws/lambda/%s", l.config.GetFunctionName())
+	streams, err := l.getLogStreams(name)
+	if err != nil {
+		utils.BulabaException(err)
+	}
+	for _, stream := range streams {
+		streamNames = append(streamNames, *stream.LogStreamName)
+	}
+
+	for response == nil || response.NextToken != nil {
+		response, err = l.filterLogEvents(name, streamNames, startTime, response)
+		if err != nil {
+			utils.BulabaException(err)
+		}
+		logEvents = append(logEvents, response.Events...)
+	}
+	sort.Slice(logEvents, func(i int, j int) bool {
+		return *logEvents[i].Timestamp < *logEvents[j].Timestamp
+	})
+	return logEvents
+}
+
+func (l *Lambda) filterLogEvents(logName string, streamNames []string, startTime int64, logEvents *cloudwatchlogs.FilterLogEventsOutput) (*cloudwatchlogs.FilterLogEventsOutput, error) {
+	client := cloudwatchlogs.NewFromConfig(l.AwsConfig)
+	logEventsInput := &cloudwatchlogs.FilterLogEventsInput{
+		LogGroupName: aws.String(logName),
+		LogStreamNames: streamNames,
+		StartTime: aws.Int64(startTime),
+		EndTime: aws.Int64(time.Now().UnixNano() / int64(time.Millisecond)),
+		Limit: aws.Int32(10000),
+		Interleaved: aws.Bool(true),
+	}
+	if logEvents != nil && logEvents.NextToken != nil {
+		logEventsInput.NextToken = logEvents.NextToken
+	}
+	resp, err := client.FilterLogEvents(context.TODO(), logEventsInput)
+	return resp, err
+}
+
+func (l *Lambda) getLogStreams(logName string) ([]cwTypes.LogStream, error) {
+	client := cloudwatchlogs.NewFromConfig(l.AwsConfig)
+	resp, err := client.DescribeLogStreams(context.TODO(), &cloudwatchlogs.DescribeLogStreamsInput{
+		LogGroupName: aws.String(logName),
+		Descending: aws.Bool(true),
+		OrderBy: cwTypes.OrderByLastEventTime,
+	})
+	return resp.LogStreams, err
 }
 
 func (l *Lambda) Deploy(zipPath string) {

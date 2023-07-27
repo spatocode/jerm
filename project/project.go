@@ -76,7 +76,7 @@ func (p *Project) Init() {
 		p.config.Stage = env
 	}
 
-	p.config.ProjectName = fmt.Sprintf("%s-%s", p.config.ProjectName, p.config.Stage)
+	p.config.ProjectName = fmt.Sprintf("bulaba-%s-%s", p.config.ProjectName, p.config.Stage)
 	awsConfig := cloud.LoadLambda(p.config).AwsConfig
 	p.config.Region = awsConfig.Region
 
@@ -99,6 +99,12 @@ func (p *Project) DeployAWS() {
 	file := p.packageProject()
 	p.cloud.Deploy(file)
 	fmt.Println("Done!")
+}
+
+func (p *Project) LogAWS() {
+	p.config = p.mapJSONConfigToStruct()
+	p.cloud = cloud.LoadLambda(p.config)
+	p.cloud.Logs()
 }
 
 func (p *Project) Package() {

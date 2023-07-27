@@ -4,18 +4,25 @@ Copyright © 2023 Ekene Izukanne <ekeneizukanne@gmail.com>
 package cmd
 
 import (
-	"fmt"
+	"strings"
 
+	"github.com/spatocode/bulaba/project"
+	"github.com/spatocode/bulaba/utils"
 	"github.com/spf13/cobra"
 )
 
 // statusCmd represents the status command
 var statusCmd = &cobra.Command{
-	Use:   "status",
-	Short: "Show deployment status",
-	Long:  "Show deployment status",
+	Use:   "logs",
+	Short: "Show deployment logs",
+	Long:  "Show deployment logs",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("status called")
+		if len(args) == 1 && strings.ToLower(args[0]) == "aws" {
+			lambda := project.LoadProject()
+			lambda.LogAWS()
+		} else {
+			utils.BulabaException("Unknown arg. Expected a cloud platform [aws]")
+		}
 	},
 }
 

@@ -113,6 +113,7 @@ type Platform interface {
 	Deploy(string)
 	CreateFunctionEntry(string)
 	CheckPermissions()
+	Logs()
 }
 
 type CloudConfig interface {
