@@ -6,6 +6,7 @@ package cmd
 import (
 	"strings"
 
+	"github.com/spatocode/bulaba/cloud"
 	"github.com/spatocode/bulaba/project"
 	"github.com/spatocode/bulaba/utils"
 	"github.com/spf13/cobra"
@@ -16,9 +17,11 @@ var deployCmd = &cobra.Command{
 	Short: "Deploy an application",
 	Long:  "Deploy an application",
 	Run: func(cmd *cobra.Command, args []string) {
+		p := project.LoadProject()
+		config := p.JSONToStruct()
 		if len(args) == 1 && strings.ToLower(args[0]) == "aws" {
-			lambda := project.LoadProject()
-			lambda.DeployAWS()
+			lambda := cloud.LoadLambda(config)
+			p.Deploy(lambda)
 		} else {
 			utils.BulabaException("Unknown arg. Expected a cloud platform [aws]")
 		}

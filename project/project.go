@@ -91,35 +91,33 @@ func (p *Project) Init() {
 	p.config.ToJson()
 }
 
-func (p *Project) DeployAWS() {
+func (p *Project) Deploy(cloud cloud.Platform) {
 	p.config = p.mapJSONConfigToStruct()
-	lambda := cloud.LoadLambda(p.config)
-	p.cloud = lambda
+	p.cloud = cloud
 	p.cloud.CheckPermissions()
 	file := p.packageProject()
 	p.cloud.Deploy(file)
 	fmt.Println("Done!")
 }
 
-func (p *Project) LogAWS() {
+func (p *Project) JSONToStruct() *Config {
+	return p.mapJSONConfigToStruct()
+}
+
+func (p *Project) Rollback() {
 	p.config = p.mapJSONConfigToStruct()
 	p.cloud = cloud.LoadLambda(p.config)
 	p.cloud.Logs()
 }
 
-func (p *Project) Package() {
-	lambda := cloud.LoadLambda(p.config)
-	p.cloud = lambda
+func (p *Project) Package(cloud cloud.Platform) {
+	p.cloud = cloud
 	p.packageProject()
 	fmt.Println("Done!")
 }
 
 func (p *Project) packageProject() string {
 	fmt.Println("Preparing bulaba project for packaging...")
-	if p.cloud == nil {
-		lambda := cloud.LoadLambda(p.config)
-		p.cloud = lambda
-	}
 	cwd, err := os.Getwd()
 	if err != nil {
 		utils.BulabaException(err)
