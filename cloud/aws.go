@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -65,6 +66,7 @@ func (l *Lambda) getAWSConfig() (aws.Config, aws.Credentials) {
 }
 
 func (l *Lambda) Logs() {
+	fmt.Println("Fetching logs...")
 	startTime := int64(time.Millisecond*100000)
 	prevStart := startTime
 	for {
@@ -102,11 +104,21 @@ func (l *Lambda) getLogs(startTime int64) []cwTypes.FilteredLogEvent {
 		response *cloudwatchlogs.FilterLogEventsOutput
 		logEvents []cwTypes.FilteredLogEvent
 	)
+
 	name := fmt.Sprintf("/aws/lambda/%s", l.config.GetFunctionName())
 	streams, err := l.getLogStreams(name)
 	if err != nil {
+		var rnfErr *cwTypes.ResourceNotFoundException
+		if errors.As(err, &rnfErr) {
+			err := l.createLogStreams(name)
+			if err != nil {
+				utils.BulabaException(err)
+			}
+			return l.getLogs(startTime)
+		}
 		utils.BulabaException(err)
 	}
+
 	for _, stream := range streams {
 		streamNames = append(streamNames, *stream.LogStreamName)
 	}
@@ -122,6 +134,14 @@ func (l *Lambda) getLogs(startTime int64) []cwTypes.FilteredLogEvent {
 		return *logEvents[i].Timestamp < *logEvents[j].Timestamp
 	})
 	return logEvents
+}
+
+func (l *Lambda) createLogStreams(name string) error {
+	client := cloudwatchlogs.NewFromConfig(l.AwsConfig)
+	_, err := client.CreateLogGroup(context.TODO(), &cloudwatchlogs.CreateLogGroupInput{
+		LogGroupName: aws.String(name),
+	})
+	return err
 }
 
 func (l *Lambda) filterLogEvents(logName string, streamNames []string, startTime int64, logEvents *cloudwatchlogs.FilterLogEventsOutput) (*cloudwatchlogs.FilterLogEventsOutput, error) {
@@ -148,6 +168,9 @@ func (l *Lambda) getLogStreams(logName string) ([]cwTypes.LogStream, error) {
 		Descending: aws.Bool(true),
 		OrderBy: cwTypes.OrderByLastEventTime,
 	})
+	if err != nil {
+		return nil, err
+	}
 	return resp.LogStreams, err
 }
 
@@ -156,6 +179,70 @@ func (l *Lambda) Deploy(zipPath string) {
 	l.uploadFileToS3(zipPath)
 	l.createLambdaFunction(zipPath)
 	l.createAPIGateway()
+}
+
+func (l *Lambda) Rollback() {
+	fmt.Println("Rolling back deployment...")
+	var (
+		revisions []*string
+	)
+	steps := 1
+	response, err := l.listLambdaVersions()
+	if err != nil {
+		utils.BulabaException(err)
+	}
+	if len(response.Versions) > 1 && response.Versions[len(response.Versions)-1].PackageType == "Image" {
+		utils.BulabaException("Rollback unavailable for Docker deployment. Aborting...")
+	}
+
+	if len(response.Versions) < steps + 1{
+		utils.BulabaException("Invalid revision for rollback. Aborting...")
+	}
+
+	for _, revision := range response.Versions {
+		if *revision.Version != "$LATEST" {
+			revisions = append(revisions, revision.Version)
+		}
+	}
+	sort.Slice(revisions, func(i int, j int) bool {
+		return *revisions[i] > *revisions[j]
+	})
+
+	name := fmt.Sprintf("function%s:%s", l.config.GetFunctionName(), *revisions[steps])
+	function, err := l.getLambdaFunction(name)
+	if err != nil {
+		utils.BulabaException(err)
+	}
+
+	location := function.Code.Location
+	res, err := utils.Request(*location)
+	if err != nil {
+		utils.BulabaException(err)
+	}
+
+	if res.StatusCode != 200 {
+		msg := fmt.Sprintf("Unable to get version %v of code %s", steps, l.config.GetFunctionName())
+		utils.BulabaException(msg)
+	}
+	defer res.Body.Close()
+	b, err := io.ReadAll(res.Body)
+	if err != nil {
+		utils.BulabaException(err)
+	}
+
+	_, err = l.updateLambdaFunction(b)
+	if err != nil {
+		utils.BulabaException(err)
+	}
+	fmt.Println("Done!")
+}
+
+func (l *Lambda) listLambdaVersions() (*lambda.ListVersionsByFunctionOutput, error) {
+	client := lambda.NewFromConfig(l.AwsConfig)
+	response, err := client.ListVersionsByFunction(context.TODO(), &lambda.ListVersionsByFunctionInput{
+		FunctionName: aws.String(l.config.GetFunctionName()),
+	})
+	return response, err
 }
 
 func (l *Lambda) CreateFunctionEntry(file string) {
@@ -170,7 +257,7 @@ func (l *Lambda) CreateFunctionEntry(file string) {
 	if err != nil {
 		utils.BulabaException(err.Error())
 	}
-	l.functionHandler = file
+	l.functionHandler = "handler.lambda_handler"
 }
 
 func (l *Lambda) createAPIGateway() {
@@ -315,9 +402,10 @@ func (l *Lambda) getLambdaVersionsByFuction() []lambdaTypes.FunctionConfiguratio
 }
 
 func (l *Lambda) createLambdaFunction(zipPath string) *string {
-	arn, err := l.getLambdaFunctionArn()
+	name := l.config.GetFunctionName()
+	function, err := l.getLambdaFunction(name)
 	if err == nil {
-		return arn
+		return function.Configuration.FunctionArn
 	}
 	fileName := filepath.Base(zipPath)
 	client := lambda.NewFromConfig(l.AwsConfig)
@@ -337,15 +425,28 @@ func (l *Lambda) createLambdaFunction(zipPath string) *string {
 	return resp.FunctionArn
 }
 
-func (l *Lambda) getLambdaFunctionArn() (*string, error) {
+func (l *Lambda) getLambdaFunction(name string) (*lambda.GetFunctionOutput, error) {
 	client := lambda.NewFromConfig(l.AwsConfig)
 	resp, err := client.GetFunction(context.TODO(), &lambda.GetFunctionInput{
-		FunctionName: aws.String(l.config.GetFunctionName()),
+		FunctionName: aws.String(name),
 	})
 	if err != nil {
 		return nil, err
 	}
-	return resp.Configuration.FunctionArn, err
+	return resp, err
+}
+
+func (l *Lambda) updateLambdaFunction(content []byte) (*lambda.UpdateFunctionCodeOutput, error) {
+	client := lambda.NewFromConfig(l.AwsConfig)
+	resp, err := client.UpdateFunctionCode(context.TODO(), &lambda.UpdateFunctionCodeInput{
+		FunctionName: aws.String(l.config.GetFunctionName()),
+		ZipFile: content,
+		Publish: true,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return resp, err
 }
 
 func (l *Lambda) ensureIAMRolePolicy() {

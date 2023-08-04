@@ -153,7 +153,6 @@ func (p *Project) packageProject() string {
 }
 
 func (p *Project) mapJSONConfigToStruct() *Config {
-	fmt.Println("Fetching configuration file...")
 	data, err := os.ReadFile(InitFilename)
 	if err != nil {
 		var pErr *os.PathError
