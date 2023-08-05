@@ -253,7 +253,9 @@ func (l *Lambda) CreateFunctionEntry(file string) {
 	}
 	defer f.Close()
 
-	_, err = f.Write([]byte(awsLambdaHandler))
+	projectName := strings.Split(l.config.GetFunctionName(), "-")[1]
+	handler := strings.ReplaceAll(awsLambdaHandler, ".wsgi", projectName)
+	_, err = f.Write([]byte(handler))
 	if err != nil {
 		utils.BulabaException(err.Error())
 	}

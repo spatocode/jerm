@@ -37,6 +37,7 @@ var (
 		".git",
 		".vscode",
 		"docutils",
+		"main",
 	}
 )
 

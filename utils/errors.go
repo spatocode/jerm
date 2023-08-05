@@ -13,7 +13,7 @@ func BulabaException(message ...any) {
 }
 
 func Request(location string) (*http.Response, error) {
-	req, err := http.NewRequestWithContext(context.TODO(), 
+	req, err := http.NewRequestWithContext(context.TODO(),
 		http.MethodGet, location, nil)
 	if err != nil {
 		return nil, err

@@ -1,6 +1,5 @@
 /*
 Copyright © 2023 Ekene Izukanne <ekeneizukanne@gmail.com>
-
 */
 package cmd
 
@@ -17,7 +16,7 @@ import (
 var rollbackCmd = &cobra.Command{
 	Use:   "rollback",
 	Short: "Rollsback to the previous revision of the deployment",
-	Long: "Rollsback to the previous revision of the deployment",
+	Long:  "Rollsback to the previous revision of the deployment",
 	Run: func(cmd *cobra.Command, args []string) {
 		p := project.LoadProject()
 		config := p.JSONToStruct()

@@ -15,12 +15,13 @@ var (
 )
 
 type Config struct {
-	Stage         string `json:"stage"`
-	Bucket        string `json:"s3_bucket"`
-	ProjectName   string `json:"project_name"`
-	Region        string `json:"region"`
-	Profile       string `json:"profile"`
-	PythonVersion string `json:"python_version"`
+	Stage          string `json:"stage"`
+	Bucket         string `json:"s3_bucket"`
+	ProjectName    string `json:"project_name"`
+	Region         string `json:"region"`
+	Profile        string `json:"profile"`
+	PythonVersion  string `json:"python_version"`
+	DjangoSettings string `json:"django_settings"`
 }
 
 func (c *Config) GetRuntime() string {
@@ -29,6 +30,10 @@ func (c *Config) GetRuntime() string {
 
 func (c *Config) GetFunctionName() string {
 	return c.ProjectName
+}
+
+func (c *Config) GetAppsEntry() string {
+	return c.DjangoSettings
 }
 
 func (c *Config) GetBucket() string {
