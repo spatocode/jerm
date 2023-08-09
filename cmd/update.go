@@ -4,8 +4,11 @@ Copyright © 2023 Ekene Izukanne <ekeneizukanne@gmail.com>
 package cmd
 
 import (
-	"fmt"
+	"strings"
 
+	"github.com/spatocode/bulaba/cloud"
+	"github.com/spatocode/bulaba/project"
+	"github.com/spatocode/bulaba/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -15,7 +18,14 @@ var updateCmd = &cobra.Command{
 	Short: "Update a deployed application",
 	Long:  "Update a deployed application",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("update called")
+		p := project.LoadProject()
+		config := p.JSONToStruct()
+		if len(args) == 1 && strings.ToLower(args[0]) == "aws" {
+			lambda := cloud.LoadLambda(config)
+			p.Update(lambda)
+		} else {
+			utils.BulabaException("Unknown arg. Expected a cloud platform [aws]")
+		}
 	},
 }
 

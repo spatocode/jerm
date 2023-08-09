@@ -111,6 +111,7 @@ const (
 
 type Platform interface {
 	Deploy(string)
+	Update(string)
 	CreateFunctionEntry(string)
 	CheckPermissions()
 	Logs()
@@ -119,6 +120,7 @@ type Platform interface {
 type CloudConfig interface {
 	ToJson()
 	GetFunctionName() string
+	GetAppsEntry() string
 	GetRuntime() string
 	GetBucket() string
 	GetStage() string
