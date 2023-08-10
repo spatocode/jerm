@@ -62,6 +62,7 @@ func LoadProject() *Project {
 		config: config,
 	}
 	p.config.PythonVersion = p.getPythonVersion()
+	p.config.DjangoSettings = p.getDjangoSettings()
 	return p
 }
 
@@ -70,11 +71,11 @@ func (p *Project) Init() {
 	p.printInitMessage()
 
 	fmt.Println("Specify the name for this deployment stage. [dev, staging, prod]")
-	env := p.getStdIn(fmt.Sprintf("Deployment stage: (%s)", Stage))
-	if env != "\n" {
-		fmt.Println(env != "\n", env != "")
+	stage := p.getStdIn(fmt.Sprintf("Deployment stage: (%s)", Stage))
+	if stage != "\n" {
+		fmt.Println(stage != "\n", stage != "")
 		// TODO: Check is correct name
-		p.config.Stage = env
+		p.config.Stage = strings.TrimSpace(stage)
 	}
 
 	p.config.ProjectName = fmt.Sprintf("bulaba-%s-%s", p.config.ProjectName, p.config.Stage)
@@ -86,7 +87,7 @@ func (p *Project) Init() {
 	if bucket != "\n" {
 		// TODO: Enforce bucket naming restrictions
 		// https://docs.aws.amazon.com/AmazonS3/latest/dev/BucketRestrictions.html#bucketnamingrules
-		p.config.Bucket = bucket
+		p.config.Bucket = strings.TrimSpace(bucket)
 	}
 
 	p.config.ToJson()
@@ -98,6 +99,28 @@ func (p *Project) Deploy(cloud cloud.Platform) {
 	p.cloud.CheckPermissions()
 	file := p.packageProject()
 	p.cloud.Deploy(file)
+	fmt.Println("Done!")
+}
+
+func (p *Project) Update(cloud cloud.Platform) {
+	p.config = p.mapJSONConfigToStruct()
+	p.cloud = cloud
+	p.cloud.CheckPermissions()
+	file := p.packageProject()
+	p.cloud.Update(file)
+	fmt.Println("Done!")
+}
+
+func (p *Project) Undeploy(cloud cloud.Platform) {
+	fmt.Println("Are you sure you want to undeploy? [y/n]")
+	ans := p.getStdIn("")
+	if strings.TrimSpace(ans) != "y" {
+		return
+	}
+	p.config = p.mapJSONConfigToStruct()
+	p.cloud = cloud
+	p.cloud.CheckPermissions()
+	p.cloud.Undeploy()
 	fmt.Println("Done!")
 }
 
@@ -143,7 +166,9 @@ func (p *Project) packageProject() string {
 	if err != nil {
 		utils.BulabaException(err)
 	}
+	defer os.RemoveAll(tempDir)
 
+	p.installNecessaryDependencies(tempDir)
 	p.copyNecessaryFilesToTempDir(cwd, tempDir)
 	p.copyNecessaryFilesToTempDir(sitePackages, tempDir)
 	f := filepath.Join(tempDir, "handler.py")
@@ -151,6 +176,124 @@ func (p *Project) packageProject() string {
 
 	p.archivePackage(archivePath, tempDir)
 	return archivePath
+}
+
+func (p *Project) installNecessaryDependencies(tempDir string) {
+	dependencies := map[string]string{"aws-wsgi": "0.2.7"}
+	for project, version := range dependencies {
+		url := fmt.Sprintf("https://pypi.org/pypi/%s/json", project)
+		res, err := utils.Request(url)
+		if err != nil {
+			utils.BulabaException(err)
+		}
+		defer res.Body.Close()
+		b, err := io.ReadAll(res.Body)
+		if err != nil {
+			utils.BulabaException(err)
+		}
+		data := make(map[string]interface{})
+		err = json.Unmarshal(b, &data)
+		if err != nil {
+			utils.BulabaException(err)
+		}
+
+		r := data["releases"]
+		releases, _ := r.(map[string]interface{})
+		for _, v := range releases[version].([]interface{}) {
+			url := v.(map[string]interface{})["url"].(string)
+			filename := v.(map[string]interface{})["filename"].(string)
+			if filepath.Ext(filename) == ".whl" {
+				p.downloadDependencies(url, filename, tempDir)
+			}
+		}
+	}
+}
+
+func (p *Project) downloadDependencies(url, filename, tempDir string) {
+	res, err := utils.Request(url)
+	if err != nil {
+		utils.BulabaException(err)
+	}
+	defer res.Body.Close()
+	b, err := io.ReadAll(res.Body)
+	if err != nil {
+		utils.BulabaException(err)
+	}
+
+	temp, err := os.MkdirTemp(os.TempDir(), "bulaba-dep")
+	if err != nil {
+		utils.BulabaException(err)
+	}
+	defer os.RemoveAll(temp)
+
+	filenamePath := filepath.Join(temp, filename)
+	file, err := os.Create(filenamePath)
+	if err != nil {
+		utils.BulabaException(err)
+	}
+	defer file.Close()
+	file.Write(b)
+
+	if err := p.extractWheel(filenamePath, tempDir); err != nil {
+		utils.BulabaException("Error extracting wheel contents:", err)
+	}
+}
+
+func (p *Project) extractWheel(wheelPath, outputDir string) error {
+	reader, err := zip.OpenReader(wheelPath)
+	if err != nil {
+		return err
+	}
+	defer reader.Close()
+
+	for _, file := range reader.File {
+		os.MkdirAll(filepath.Join(outputDir, filepath.Dir(file.Name)), 0755)
+		if err != nil {
+			utils.BulabaException(err)
+		}
+
+		extractedFile, err := os.Create(filepath.Join(outputDir, file.Name))
+		if err != nil {
+			utils.BulabaException(err)
+		}
+		defer extractedFile.Close()
+
+		zippedFile, err := file.Open()
+		if err != nil {
+			utils.BulabaException(err)
+		}
+		defer zippedFile.Close()
+
+		if _, err = io.Copy(extractedFile, zippedFile); err != nil {
+			utils.BulabaException(err)
+		}
+	}
+
+	return nil
+}
+
+func (p *Project) getDjangoSettings() string {
+	workDir, _ := os.Getwd()
+	djangoPath := ""
+	walker := func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if !d.IsDir() && strings.HasSuffix(path, "settings.py") {
+			b := filepath.Base(path)
+			d := filepath.Dir(path)
+			splitPath := strings.Split(d, string(filepath.Separator))
+			djangoPath = fmt.Sprintf("%s.%s", splitPath[len(splitPath)-1], b)
+		}
+
+		return nil
+	}
+	err := filepath.WalkDir(workDir, walker)
+	if err != nil {
+		utils.BulabaException(err)
+	}
+	return djangoPath
 }
 
 func (p *Project) mapJSONConfigToStruct() *Config {
@@ -282,7 +425,9 @@ func (c *Project) printInitMessage() {
 }
 
 func (c *Project) getStdIn(prompt string) string {
-	fmt.Println(prompt)
+	if prompt != "" {
+		fmt.Println(prompt)
+	}
 	reader := bufio.NewReader(os.Stdin)
 	value, err := reader.ReadString('\n')
 	if err != nil {

@@ -112,6 +112,7 @@ const (
 type Platform interface {
 	Deploy(string)
 	Update(string)
+	Undeploy()
 	CreateFunctionEntry(string)
 	CheckPermissions()
 	Logs()

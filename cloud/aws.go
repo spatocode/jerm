@@ -8,12 +8,14 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/apigatewayv2"
+	agTypes "github.com/aws/aws-sdk-go-v2/service/apigatewayv2/types"
 	"github.com/aws/aws-sdk-go-v2/service/cloudformation"
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
 	cwTypes "github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs/types"
@@ -32,8 +34,8 @@ type Lambda struct {
 	roleName        string
 	policyName      string
 	functionHandler string
-	functionArn		*string
-	description		string
+	functionArn     *string
+	description     string
 	AwsConfig       aws.Config
 	AwsCreds        aws.Credentials
 	config          CloudConfig
@@ -41,10 +43,10 @@ type Lambda struct {
 
 func LoadLambda(cfg CloudConfig) *Lambda {
 	l := &Lambda{
-		roleName:   fmt.Sprintf("%s-BulabaLambdaServiceExecutionRole", cfg.GetFunctionName()),
-		policyName: "bulaba-permissions",
+		roleName:    fmt.Sprintf("%s-BulabaLambdaServiceExecutionRole", cfg.GetFunctionName()),
+		policyName:  "bulaba-permissions",
 		description: "Bulaba Deployment",
-		config:     cfg,
+		config:      cfg,
 	}
 	l.AwsConfig, l.AwsCreds = l.getAWSConfig()
 	return l
@@ -177,11 +179,17 @@ func (l *Lambda) getLogStreams(logName string) ([]cwTypes.LogStream, error) {
 }
 
 func (l *Lambda) Deploy(zipPath string) {
-	l.ensureIsNotAlreadyDeployed()
+	deployed := l.isAlreadyDeployed()
+	if deployed {
+		l.removeZipPackage(zipPath)
+		msg := "Project already deployed. Run 'bulaba update' to update instead"
+		utils.BulabaException(msg)
+	}
 	l.uploadFileToS3(zipPath)
 	l.functionArn = l.createLambdaFunction(zipPath)
 	l.createAPIGateway()
 	l.removeZipPackage(zipPath)
+	l.removeFileFromS3(zipPath)
 }
 
 func (l *Lambda) removeZipPackage(zipPath string) {
@@ -189,8 +197,6 @@ func (l *Lambda) removeZipPackage(zipPath string) {
 	if err != nil {
 		utils.BulabaException(err)
 	}
-
-	l.removeFileFromS3(zipPath)
 }
 
 func (l *Lambda) removeFileFromS3(zipPath string) {
@@ -204,7 +210,7 @@ func (l *Lambda) removeFileFromS3(zipPath string) {
 
 	_, err = client.DeleteObject(context.TODO(), &s3.DeleteObjectInput{
 		Bucket: aws.String(l.config.GetBucket()),
-		Key: aws.String(zipPath),
+		Key:    aws.String(zipPath),
 	})
 	if err != nil {
 		utils.BulabaException(err)
@@ -223,19 +229,100 @@ func (l *Lambda) Update(zipPath string) {
 	if err != nil {
 		utils.BulabaException(err)
 	}
+
+	_, err = l.getLambdaFunction(l.config.GetFunctionName())
+	if err != nil {
+		var rnfErr *lambdaTypes.ResourceNotFoundException
+		if errors.As(err, &rnfErr) {
+			msg := "Can't find a deployed project. Run 'bulaba deploy' to deploy instead."
+			utils.BulabaException(msg)
+		}
+		utils.BulabaException(err)
+	}
+
 	l.updateLambdaFunction(content)
 	l.createAPIGateway()
 	l.removeZipPackage(zipPath)
+	l.removeFileFromS3(zipPath)
+}
+
+func (l *Lambda) Undeploy() {
+	deployed := l.isAlreadyDeployed()
+	if !deployed {
+		msg := "Can't find a deployed project. Run 'bulaba deploy' to deploy instead."
+		utils.BulabaException(msg)
+	}
+	fmt.Println("Undeploying...")
+	l.deleteAPIGatewayLogs()
+	l.undeployAPIGateway()
+	l.deleteLambdaFunction()
+	groupName := fmt.Sprintf("/aws/lambda/%s", l.config.GetFunctionName())
+	l.deleteLogGroup(groupName)
+}
+
+func (l *Lambda) deleteLambdaFunction() {
+	client := lambda.NewFromConfig(l.AwsConfig)
+	client.DeleteFunction(context.TODO(), &lambda.DeleteFunctionInput{
+		FunctionName: aws.String(l.config.GetFunctionName()),
+	})
+}
+
+func (l *Lambda) deleteAPIGatewayLogs() {
+	apiIds, err := l.getRestAPIs()
+	if err != nil {
+		utils.BulabaException(err)
+	}
+	for _, id := range apiIds {
+		client := apigatewayv2.NewFromConfig(l.AwsConfig)
+		resp, err := client.GetStages(context.TODO(), &apigatewayv2.GetStagesInput{
+			ApiId: id,
+		})
+		if err != nil {
+			utils.BulabaException(err)
+		}
+		for _, item := range resp.Items {
+			groupName := fmt.Sprintf("API-Gateway-Execution-Logs_%s/%s", *id, *item.StageName)
+			l.deleteLogGroup(groupName)
+		}
+	}
+}
+
+func (l *Lambda) undeployAPIGateway() {
+	apiIds, err := l.getRestAPIs()
+	if err != nil {
+		utils.BulabaException(err)
+	}
+	for _, id := range apiIds {
+		client := apigatewayv2.NewFromConfig(l.AwsConfig)
+		_, err := client.DeleteApi(context.TODO(), &apigatewayv2.DeleteApiInput{
+			ApiId: id,
+		})
+		if err != nil {
+			utils.BulabaException(err)
+		}
+	}
+}
+
+func (l *Lambda) deleteLogGroup(groupName string) {
+	client := cloudwatchlogs.NewFromConfig(l.AwsConfig)
+	client.DeleteLogGroup(context.TODO(), &cloudwatchlogs.DeleteLogGroupInput{
+		LogGroupName: aws.String(groupName),
+	})
 }
 
 func (l *Lambda) Rollback() {
 	fmt.Println("Rolling back deployment...")
 	var (
-		revisions []*string
+		revisions []int
 	)
 	steps := 1
 	response, err := l.listLambdaVersions()
 	if err != nil {
+		var rnfErr *lambdaTypes.ResourceNotFoundException
+		if errors.As(err, &rnfErr) {
+			msg := "Can't find a deployed project. Run 'bulaba deploy' to deploy instead."
+			utils.BulabaException(msg)
+		}
 		utils.BulabaException(err)
 	}
 	if len(response.Versions) > 1 && response.Versions[len(response.Versions)-1].PackageType == "Image" {
@@ -248,14 +335,15 @@ func (l *Lambda) Rollback() {
 
 	for _, revision := range response.Versions {
 		if *revision.Version != "$LATEST" {
-			revisions = append(revisions, revision.Version)
+			version, _ := strconv.Atoi(*revision.Version)
+			revisions = append(revisions, version)
 		}
 	}
 	sort.Slice(revisions, func(i int, j int) bool {
-		return *revisions[i] > *revisions[j]
+		return revisions[i] > revisions[j]
 	})
 
-	name := fmt.Sprintf("function%s:%s", l.config.GetFunctionName(), *revisions[steps])
+	name := fmt.Sprintf("function%s:%v", l.config.GetFunctionName(), revisions[steps])
 	function, err := l.getLambdaFunction(name)
 	if err != nil {
 		utils.BulabaException(err)
@@ -309,24 +397,61 @@ func (l *Lambda) CreateFunctionEntry(file string) {
 	l.functionHandler = "handler.lambda_handler"
 }
 
+func (l *Lambda) getRestAPIs() ([]*string, error) {
+	var apiIds []*string
+	apiGatewayClient := apigatewayv2.NewFromConfig(l.AwsConfig)
+	resp, err := apiGatewayClient.GetApis(context.TODO(), &apigatewayv2.GetApisInput{
+		MaxResults: aws.String("500"),
+	})
+	for _, item := range resp.Items {
+		if *item.Name == l.config.GetFunctionName() {
+			apiIds = append(apiIds, item.ApiId)
+		}
+	}
+	return apiIds, err
+}
+
 func (l *Lambda) getApiId() (*string, error) {
 	cloudformationClient := cloudformation.NewFromConfig(l.AwsConfig)
 	resp, err := cloudformationClient.DescribeStackResource(context.TODO(), &cloudformation.DescribeStackResourceInput{
-		StackName: aws.String(l.config.GetFunctionName()),
+		StackName:         aws.String(l.config.GetFunctionName()),
 		LogicalResourceId: aws.String("Api"),
 	})
 	if err != nil || resp.StackResourceDetail == nil {
-		apiGatewayClient := apigatewayv2.NewFromConfig(l.AwsConfig)
-		r, err := apiGatewayClient.GetApis(context.TODO(), &apigatewayv2.GetApisInput{
-			MaxResults: aws.String("500"),
-		})
-		for _, item := range r.Items {
-			if *item.Name == l.config.GetFunctionName() {
-				return item.ApiId, err
-			}
+		apiId, err := l.getRestAPIs()
+		if err != nil {
+			utils.BulabaException(err)
 		}
+		if len(apiId) > 0 {
+			return apiId[0], err
+		}
+		return l.createAPI()
 	}
 	return resp.StackResourceDetail.PhysicalResourceId, err
+}
+
+func (l *Lambda) createAPI() (*string, error) {
+	client := apigatewayv2.NewFromConfig(l.AwsConfig)
+	resp, err := client.CreateApi(context.TODO(), &apigatewayv2.CreateApiInput{
+		Name:         aws.String("Api"),
+		Description:  aws.String("Automatically created by Bulaba"),
+		ProtocolType: agTypes.ProtocolTypeHttp,
+	})
+	if err != nil {
+		utils.BulabaException(err)
+	}
+	return resp.ApiId, err
+}
+
+func (l *Lambda) createStage(apiId *string) {
+	client := apigatewayv2.NewFromConfig(l.AwsConfig)
+	_, err := client.CreateStage(context.TODO(), &apigatewayv2.CreateStageInput{
+		ApiId:     apiId,
+		StageName: aws.String(l.config.GetStage()),
+	})
+	if err != nil {
+		utils.BulabaException(err)
+	}
 }
 
 func (l *Lambda) createAPIGateway() {
@@ -335,25 +460,25 @@ func (l *Lambda) createAPIGateway() {
 		utils.BulabaException(err)
 	}
 
-
 	apiUrl := l.deployAPIGateway(apiId)
 	fmt.Printf("API Gateway URL: %s", apiUrl)
 }
 
 func (l *Lambda) deployAPIGateway(apiId *string) string {
 	fmt.Println("Deploying API Gateway...")
+	l.createStage(apiId)
 	apiGatewayClient := apigatewayv2.NewFromConfig(l.AwsConfig)
 	_, err := apiGatewayClient.CreateDeployment(context.TODO(), &apigatewayv2.CreateDeploymentInput{
-		StageName: aws.String(l.config.GetStage()),
-		ApiId: apiId,
-		Description: aws.String(l.description),
+		StageName:   aws.String(l.config.GetStage()),
+		ApiId:       apiId,
+		Description: aws.String("Automatically created by Bulaba"),
 	})
 	if err != nil {
 		utils.BulabaException("[API Deployment Error]", err)
 	}
 
 	_, err = apiGatewayClient.UpdateStage(context.TODO(), &apigatewayv2.UpdateStageInput{
-		ApiId: apiId,
+		ApiId:     apiId,
 		StageName: aws.String(l.config.GetStage()),
 	})
 	if err != nil {
@@ -422,12 +547,9 @@ func (l *Lambda) uploadFileToS3(zipPath string) {
 	}
 }
 
-func (l *Lambda) ensureIsNotAlreadyDeployed() {
+func (l *Lambda) isAlreadyDeployed() bool {
 	versions := l.getLambdaVersionsByFuction()
-	if len(versions) > 0 {
-		msg := "Project already deployed. Run 'bulaba update' to update instead"
-		utils.BulabaException(msg)
-	}
+	return len(versions) > 0
 }
 
 func (l *Lambda) getLambdaVersionsByFuction() []lambdaTypes.FunctionConfiguration {
