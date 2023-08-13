@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	cp "github.com/otiai10/copy"
 
@@ -55,7 +56,7 @@ func LoadProject() *Project {
 	projectName := splitPath[len(splitPath)-1]
 	config := &Config{
 		Stage:       Stage,
-		Bucket:      fmt.Sprintf("bulaba-%d", utils.GenerateRandomNumber()),
+		Bucket:      fmt.Sprintf("bulaba-%d", time.Now().Unix()),
 		ProjectName: projectName,
 	}
 	p := &Project{

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/spatocode/bulaba/utils"
 )
@@ -11,7 +12,7 @@ import (
 var (
 	Stage             = "dev"
 	InitFilename      = "bulaba.json"
-	archiveFileSuffix = fmt.Sprintf("-pkg%d.zip", utils.GenerateRandomNumber())
+	archiveFileSuffix = fmt.Sprintf("-pkg%d.zip", time.Now().Unix())
 )
 
 type Config struct {
