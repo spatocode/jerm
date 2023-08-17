@@ -14,9 +14,10 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/apigatewayv2"
-	agTypes "github.com/aws/aws-sdk-go-v2/service/apigatewayv2/types"
+	"github.com/aws/aws-sdk-go-v2/service/apigateway"
+	agTypes "github.com/aws/aws-sdk-go-v2/service/apigateway/types"
 	"github.com/aws/aws-sdk-go-v2/service/cloudformation"
+	cfTypes "github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
 	cwTypes "github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs/types"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
@@ -25,28 +26,37 @@ import (
 	lambdaTypes "github.com/aws/aws-sdk-go-v2/service/lambda/types"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	cf "github.com/awslabs/goformation/v7/cloudformation"
+	cfApigateway "github.com/awslabs/goformation/v7/cloudformation/apigateway"
 
 	"github.com/spatocode/bulaba/utils"
 )
 
 type Lambda struct {
-	roleARN         *string
-	roleName        string
-	policyName      string
-	functionHandler string
-	functionArn     *string
-	description     string
-	AwsConfig       aws.Config
-	AwsCreds        aws.Credentials
-	config          CloudConfig
+	roleARN           *string
+	roleName          string
+	policyName        string
+	functionHandler   string
+	functionArn       *string
+	description       string
+	AwsConfig         aws.Config
+	AwsCreds          aws.Credentials
+	config            CloudConfig
+	cfTemplate        *cf.Template
+	defaultMaxRetry   int
+	maxWaiterDuration time.Duration
+	timeout           int32
 }
 
 func LoadLambda(cfg CloudConfig) *Lambda {
 	l := &Lambda{
-		roleName:    fmt.Sprintf("%s-BulabaLambdaServiceExecutionRole", cfg.GetFunctionName()),
-		policyName:  "bulaba-permissions",
-		description: "Bulaba Deployment",
-		config:      cfg,
+		roleName:          fmt.Sprintf("%s-BulabaLambdaServiceExecutionRole", cfg.GetFunctionName()),
+		policyName:        "bulaba-permissions",
+		description:       "Bulaba Deployment",
+		config:            cfg,
+		defaultMaxRetry:   3,
+		maxWaiterDuration: 20,
+		timeout:           30,
 	}
 	l.AwsConfig, l.AwsCreds = l.getAWSConfig()
 	return l
@@ -181,18 +191,44 @@ func (l *Lambda) getLogStreams(logName string) ([]cwTypes.LogStream, error) {
 func (l *Lambda) Deploy(zipPath string) {
 	deployed := l.isAlreadyDeployed()
 	if deployed {
-		l.removeZipPackage(zipPath)
+		l.removeLocalFile(zipPath)
 		msg := "Project already deployed. Run 'bulaba update' to update instead"
 		utils.BulabaException(msg)
 	}
 	l.uploadFileToS3(zipPath)
 	l.functionArn = l.createLambdaFunction(zipPath)
-	l.createAPIGateway()
-	l.removeZipPackage(zipPath)
+	l.waitTillFunctionBecomesActive()
+	l.scheduleEvents()
+	l.setupApiGateway()
+	l.removeLocalFile(zipPath)
 	l.removeFileFromS3(zipPath)
 }
 
-func (l *Lambda) removeZipPackage(zipPath string) {
+func (l *Lambda) waitTillFunctionBecomesActive() {
+	client := lambda.NewFunctionActiveV2Waiter(lambda.NewFromConfig(l.AwsConfig))
+	err := client.Wait(context.TODO(), &lambda.GetFunctionInput{
+		FunctionName: aws.String(l.config.GetFunctionName()),
+	}, time.Second*l.maxWaiterDuration)
+	if err != nil {
+		utils.BulabaException(err)
+	}
+}
+
+func (l *Lambda) waitTillFunctionBecomesUpdated() {
+	client := lambda.NewFunctionUpdatedV2Waiter(lambda.NewFromConfig(l.AwsConfig))
+	err := client.Wait(context.TODO(), &lambda.GetFunctionInput{
+		FunctionName: aws.String(l.config.GetFunctionName()),
+	}, time.Second*l.maxWaiterDuration)
+	if err != nil {
+		fmt.Println(err)
+	}
+}
+
+func (l *Lambda) scheduleEvents() {
+
+}
+
+func (l *Lambda) removeLocalFile(zipPath string) {
 	err := os.Remove(zipPath)
 	if err != nil {
 		utils.BulabaException(err)
@@ -240,9 +276,10 @@ func (l *Lambda) Update(zipPath string) {
 		utils.BulabaException(err)
 	}
 
-	l.updateLambdaFunction(content)
-	l.createAPIGateway()
-	l.removeZipPackage(zipPath)
+	l.functionArn = l.updateLambdaFunction(content)
+	l.waitTillFunctionBecomesUpdated()
+	l.setupApiGateway()
+	l.removeLocalFile(zipPath)
 	l.removeFileFromS3(zipPath)
 }
 
@@ -253,14 +290,15 @@ func (l *Lambda) Undeploy() {
 		utils.BulabaException(msg)
 	}
 	fmt.Println("Undeploying...")
+	l.deleteAPIGateway()
 	l.deleteAPIGatewayLogs()
-	l.undeployAPIGateway()
 	l.deleteLambdaFunction()
 	groupName := fmt.Sprintf("/aws/lambda/%s", l.config.GetFunctionName())
 	l.deleteLogGroup(groupName)
 }
 
 func (l *Lambda) deleteLambdaFunction() {
+	fmt.Println("Deleting lambda function...")
 	client := lambda.NewFromConfig(l.AwsConfig)
 	client.DeleteFunction(context.TODO(), &lambda.DeleteFunctionInput{
 		FunctionName: aws.String(l.config.GetFunctionName()),
@@ -268,34 +306,41 @@ func (l *Lambda) deleteLambdaFunction() {
 }
 
 func (l *Lambda) deleteAPIGatewayLogs() {
-	apiIds, err := l.getRestAPIs()
+	fmt.Println("Deleting API Gateway logs...")
+	apiIds, err := l.getRestApis()
 	if err != nil {
 		utils.BulabaException(err)
 	}
 	for _, id := range apiIds {
-		client := apigatewayv2.NewFromConfig(l.AwsConfig)
-		resp, err := client.GetStages(context.TODO(), &apigatewayv2.GetStagesInput{
-			ApiId: id,
+		client := apigateway.NewFromConfig(l.AwsConfig)
+		resp, err := client.GetStages(context.TODO(), &apigateway.GetStagesInput{
+			RestApiId: id,
 		})
 		if err != nil {
 			utils.BulabaException(err)
 		}
-		for _, item := range resp.Items {
+		for _, item := range resp.Item {
 			groupName := fmt.Sprintf("API-Gateway-Execution-Logs_%s/%s", *id, *item.StageName)
 			l.deleteLogGroup(groupName)
 		}
 	}
 }
 
-func (l *Lambda) undeployAPIGateway() {
-	apiIds, err := l.getRestAPIs()
+func (l *Lambda) deleteAPIGateway() {
+	fmt.Println("Deleting API Gateway...")
+	err := l.deleteStack()
+	if err == nil {
+		return
+	}
+
+	apiIds, err := l.getRestApis()
 	if err != nil {
 		utils.BulabaException(err)
 	}
 	for _, id := range apiIds {
-		client := apigatewayv2.NewFromConfig(l.AwsConfig)
-		_, err := client.DeleteApi(context.TODO(), &apigatewayv2.DeleteApiInput{
-			ApiId: id,
+		client := apigateway.NewFromConfig(l.AwsConfig)
+		_, err := client.DeleteRestApi(context.TODO(), &apigateway.DeleteRestApiInput{
+			RestApiId: id,
 		})
 		if err != nil {
 			utils.BulabaException(err)
@@ -365,10 +410,7 @@ func (l *Lambda) Rollback() {
 		utils.BulabaException(err)
 	}
 
-	_, err = l.updateLambdaFunction(b)
-	if err != nil {
-		utils.BulabaException(err)
-	}
+	l.updateLambdaFunction(b)
 	fmt.Println("Done!")
 }
 
@@ -397,15 +439,15 @@ func (l *Lambda) CreateFunctionEntry(file string) {
 	l.functionHandler = "handler.lambda_handler"
 }
 
-func (l *Lambda) getRestAPIs() ([]*string, error) {
+func (l *Lambda) getRestApis() ([]*string, error) {
 	var apiIds []*string
-	apiGatewayClient := apigatewayv2.NewFromConfig(l.AwsConfig)
-	resp, err := apiGatewayClient.GetApis(context.TODO(), &apigatewayv2.GetApisInput{
-		MaxResults: aws.String("500"),
+	apiGatewayClient := apigateway.NewFromConfig(l.AwsConfig)
+	resp, err := apiGatewayClient.GetRestApis(context.TODO(), &apigateway.GetRestApisInput{
+		Limit: aws.Int32(500),
 	})
 	for _, item := range resp.Items {
 		if *item.Name == l.config.GetFunctionName() {
-			apiIds = append(apiIds, item.ApiId)
+			apiIds = append(apiIds, item.Id)
 		}
 	}
 	return apiIds, err
@@ -417,72 +459,222 @@ func (l *Lambda) getApiId() (*string, error) {
 		StackName:         aws.String(l.config.GetFunctionName()),
 		LogicalResourceId: aws.String("Api"),
 	})
-	if err != nil || resp.StackResourceDetail == nil {
-		apiId, err := l.getRestAPIs()
+	if err != nil {
+		apiId, err := l.getRestApis()
 		if err != nil {
 			utils.BulabaException(err)
 		}
 		if len(apiId) > 0 {
 			return apiId[0], err
 		}
-		return l.createAPI()
+		return nil, err
 	}
 	return resp.StackResourceDetail.PhysicalResourceId, err
 }
 
-func (l *Lambda) createAPI() (*string, error) {
-	client := apigatewayv2.NewFromConfig(l.AwsConfig)
-	resp, err := client.CreateApi(context.TODO(), &apigatewayv2.CreateApiInput{
-		Name:         aws.String("Api"),
-		Description:  aws.String("Automatically created by Bulaba"),
-		ProtocolType: agTypes.ProtocolTypeHttp,
-	})
+func (l *Lambda) createCFStack() {
+	template := fmt.Sprintf("%s-template-%v.json", l.config.GetFunctionName(), time.Now().Unix())
+	data, err := l.cfTemplate.JSON()
 	if err != nil {
 		utils.BulabaException(err)
 	}
-	return resp.ApiId, err
-}
 
-func (l *Lambda) createStage(apiId *string) {
-	client := apigatewayv2.NewFromConfig(l.AwsConfig)
-	_, err := client.CreateStage(context.TODO(), &apigatewayv2.CreateStageInput{
-		ApiId:     apiId,
-		StageName: aws.String(l.config.GetStage()),
-	})
+	file, err := os.Create(template)
 	if err != nil {
 		utils.BulabaException(err)
 	}
+	_, err = file.Write(data)
+	if err != nil {
+		utils.BulabaException(err.Error())
+	}
+	l.uploadFileToS3(template)
+
+	url := fmt.Sprintf("https://s3.amazonaws.com/%s/%s", l.config.GetBucket(), template)
+	if l.AwsConfig.Region == "us-gov-west-1" {
+		url = fmt.Sprintf("https://s3-us-gov-west-1.amazonaws.com/%s/%s", l.config.GetBucket(), template)
+	}
+	client := cloudformation.NewFromConfig(l.AwsConfig)
+	_, err = client.DescribeStacks(context.TODO(), &cloudformation.DescribeStacksInput{
+		StackName: aws.String(l.config.GetFunctionName()),
+	})
+	if err != nil {
+		fmt.Println("Creating cloud formation stack...")
+		tags := []cfTypes.Tag{
+			{
+				Key:   aws.String("BulabaProject"),
+				Value: aws.String(l.config.GetFunctionName()),
+			},
+		}
+		_, err := client.CreateStack(context.TODO(), &cloudformation.CreateStackInput{
+			StackName:    aws.String(l.config.GetFunctionName()),
+			TemplateURL:  aws.String(url),
+			Tags:         tags,
+			Capabilities: make([]cfTypes.Capability, 0),
+		})
+		if err != nil {
+			utils.BulabaException(err)
+		}
+	} else {
+		client.UpdateStack(context.TODO(), &cloudformation.UpdateStackInput{
+			StackName:    aws.String(l.config.GetFunctionName()),
+			TemplateURL:  aws.String(url),
+			Capabilities: make([]cfTypes.Capability, 0),
+		})
+	}
+
+	for {
+		time.Sleep(time.Second * 3)
+		resp, _ := client.DescribeStacks(context.TODO(), &cloudformation.DescribeStacksInput{
+			StackName: aws.String(l.config.GetFunctionName()),
+		})
+		if resp.Stacks == nil {
+			continue
+		}
+		if resp.Stacks[0].StackStatus == cfTypes.StackStatusCreateComplete || resp.Stacks[0].StackStatus == cfTypes.StackStatusUpdateComplete {
+			break
+		}
+
+		if resp.Stacks[0].StackStatus == cfTypes.StackStatusDeleteComplete ||
+			resp.Stacks[0].StackStatus == cfTypes.StackStatusDeleteInProgress ||
+			resp.Stacks[0].StackStatus == cfTypes.StackStatusRollbackInProgress ||
+			resp.Stacks[0].StackStatus == cfTypes.StackStatusUpdateRollbackCompleteCleanupInProgress ||
+			resp.Stacks[0].StackStatus == cfTypes.StackStatusUpdateRollbackComplete {
+			utils.BulabaException("CloudFormation stack creation failed. Please check console.")
+		}
+	}
+	l.removeFileFromS3(template)
+	l.removeLocalFile(template)
 }
 
-func (l *Lambda) createAPIGateway() {
+func (l *Lambda) deleteStack() error {
+	client := cloudformation.NewFromConfig(l.AwsConfig)
+	resp, err := client.DescribeStacks(context.TODO(), &cloudformation.DescribeStacksInput{
+		StackName: aws.String(l.config.GetFunctionName()),
+	})
+	if err != nil {
+		fmt.Printf("Unable to find stack %s\n", l.config.GetFunctionName())
+		return err
+	}
+	tags := make(map[string]string)
+	for _, tag := range resp.Stacks[0].Tags {
+		tags[*tag.Key] = *tag.Value
+	}
+	if tags["BulabaProject"] == l.config.GetFunctionName() {
+		fmt.Println("Deleting cloud formation stack...")
+		_, err := client.DeleteStack(context.TODO(), &cloudformation.DeleteStackInput{
+			StackName: aws.String(l.config.GetFunctionName()),
+		})
+		if err != nil {
+			return err
+		}
+	} else {
+		return fmt.Errorf("BulabaProject not found")
+	}
+	return nil
+}
+
+func (l *Lambda) createMethods(resourceId string, depth int) {
+	pre := "aws-us-gov"
+	if l.AwsConfig.Region != "us-gov-west-1" {
+		pre = "aws"
+	}
+	integrationUri := fmt.Sprintf("arn:%s:apigateway:%s:lambda:path/2015-03-31/functions/%s/invocations", pre, l.AwsConfig.Region, *l.functionArn)
+	methodName := "ANY"
+	method := &cfApigateway.Method{}
+
+	method.RestApiId = cf.Ref("Api")
+	method.ResourceId = resourceId
+	method.HttpMethod = methodName
+	method.AuthorizationType = aws.String("NONE")
+	method.ApiKeyRequired = aws.Bool(false)
+	l.cfTemplate.Resources[fmt.Sprintf("%s%v", methodName, depth)] = method
+
+	method.Integration = &cfApigateway.Method_Integration{
+		CacheNamespace:        aws.String("none"),
+		Credentials:           l.roleARN,
+		IntegrationHttpMethod: aws.String("POST"),
+		Type:                  aws.String("AWS_PROXY"),
+		PassthroughBehavior:   aws.String("NEVER"),
+		Uri:                   &integrationUri,
+	}
+}
+
+func (l *Lambda) setupApiGateway() {
+	template := cf.NewTemplate()
+	template.Description = "Generated automatically by Bulaba"
+	restApi := &cfApigateway.RestApi{
+		Name:        aws.String(l.config.GetFunctionName()),
+		Description: aws.String("Automatically created by Bulaba"),
+	}
+	template.Resources["Api"] = restApi
+
+	rootId := cf.GetAtt("Api", "RootResourceId")
+	l.cfTemplate = template
+	l.createMethods(rootId, 0)
+
+	resource := &cfApigateway.Resource{}
+	resource.RestApiId = cf.Ref("Api")
+	resource.ParentId = rootId
+	resource.PathPart = "{proxy+}"
+	l.cfTemplate.Resources["ResourceAnyPathSlashed"] = resource
+	l.createMethods(cf.Ref("ResourceAnyPathSlashed"), 1)
+
+	l.createCFStack()
+
 	apiId, err := l.getApiId()
 	if err != nil {
 		utils.BulabaException(err)
 	}
-
 	apiUrl := l.deployAPIGateway(apiId)
 	fmt.Printf("API Gateway URL: %s", apiUrl)
 }
 
 func (l *Lambda) deployAPIGateway(apiId *string) string {
 	fmt.Println("Deploying API Gateway...")
-	l.createStage(apiId)
-	apiGatewayClient := apigatewayv2.NewFromConfig(l.AwsConfig)
-	_, err := apiGatewayClient.CreateDeployment(context.TODO(), &apigatewayv2.CreateDeploymentInput{
-		StageName:   aws.String(l.config.GetStage()),
-		ApiId:       apiId,
-		Description: aws.String("Automatically created by Bulaba"),
+	apiGatewayClient := apigateway.NewFromConfig(l.AwsConfig)
+	_, err := apiGatewayClient.CreateDeployment(context.TODO(), &apigateway.CreateDeploymentInput{
+		StageName:        aws.String(l.config.GetStage()),
+		RestApiId:        apiId,
+		Description:      aws.String("Automatically created by Bulaba"),
+		CacheClusterSize: agTypes.CacheClusterSizeSize0Point5Gb,
 	})
 	if err != nil {
-		utils.BulabaException("[API Deployment Error]", err)
+		utils.BulabaException("[Deployment Error]", err)
 	}
 
-	_, err = apiGatewayClient.UpdateStage(context.TODO(), &apigatewayv2.UpdateStageInput{
-		ApiId:     apiId,
+	_, err = apiGatewayClient.UpdateStage(context.TODO(), &apigateway.UpdateStageInput{
+		RestApiId: apiId,
 		StageName: aws.String(l.config.GetStage()),
+		PatchOperations: []agTypes.PatchOperation{
+			{
+				Op:    agTypes.OpReplace,
+				Path:  aws.String("/*/*/logging/loglevel"),
+				Value: aws.String("OFF"),
+			},
+			{
+				Op:    agTypes.OpReplace,
+				Path:  aws.String("/*/*/logging/dataTrace"),
+				Value: aws.String("false"),
+			},
+			{
+				Op:    agTypes.OpReplace,
+				Path:  aws.String("/*/*/metrics/enabled"),
+				Value: aws.String("false"),
+			},
+			{
+				Op:    agTypes.OpReplace,
+				Path:  aws.String("/*/*/caching/ttlInSeconds"),
+				Value: aws.String("300"),
+			},
+			{
+				Op:    agTypes.OpReplace,
+				Path:  aws.String("/*/*/caching/dataEncrypted"),
+				Value: aws.String("false"),
+			},
+		},
 	})
 	if err != nil {
-		utils.BulabaException("[API UpdateStage Error]", err)
+		utils.BulabaException("[Stage Update Error]", err)
 	}
 
 	return fmt.Sprintf("https://%s.execute-api.%s.amazonaws.com/%s\n", *apiId, l.AwsConfig.Region, l.config.GetStage())
@@ -585,6 +777,7 @@ func (l *Lambda) createLambdaFunction(zipPath string) *string {
 		Role:         l.roleARN,
 		Runtime:      lambdaTypes.Runtime(l.config.GetRuntime()),
 		Handler:      aws.String(l.functionHandler),
+		Timeout:      aws.Int32(l.timeout),
 	})
 	if err != nil {
 		utils.BulabaException(err)
@@ -603,7 +796,7 @@ func (l *Lambda) getLambdaFunction(name string) (*lambda.GetFunctionOutput, erro
 	return resp, err
 }
 
-func (l *Lambda) updateLambdaFunction(content []byte) (*lambda.UpdateFunctionCodeOutput, error) {
+func (l *Lambda) updateLambdaFunction(content []byte) *string {
 	client := lambda.NewFromConfig(l.AwsConfig)
 	resp, err := client.UpdateFunctionCode(context.TODO(), &lambda.UpdateFunctionCodeInput{
 		FunctionName: aws.String(l.config.GetFunctionName()),
@@ -611,9 +804,9 @@ func (l *Lambda) updateLambdaFunction(content []byte) (*lambda.UpdateFunctionCod
 		Publish:      true,
 	})
 	if err != nil {
-		return nil, err
+		utils.BulabaException(err)
 	}
-	return resp, err
+	return resp.FunctionArn
 }
 
 func (l *Lambda) ensureIAMRolePolicy() {
