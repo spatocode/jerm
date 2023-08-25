@@ -180,7 +180,7 @@ func (p *Project) packageProject() string {
 }
 
 func (p *Project) installNecessaryDependencies(tempDir string) {
-	dependencies := map[string]string{"aws-wsgi": "0.2.7"}
+	dependencies := map[string]string{"lambda-wsgi-adapter": "0.1.1"}
 	for project, version := range dependencies {
 		url := fmt.Sprintf("https://pypi.org/pypi/%s/json", project)
 		res, err := utils.Request(url)
