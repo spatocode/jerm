@@ -1,0 +1,15 @@
+{
+	"name": "jerm",
+	"stage": "dev",
+	"s3_bucket": "jerm-1693911841",
+	"region": "us-east-1",
+	"lambda": {
+		"runtime": "python3.11",
+		"timeout": 30,
+		"role": "",
+		"memory": 512,
+		"handler": ""
+	},
+	"dir": "/home/ubuntu/jerm/cmd/jerm",
+	"entry": ""
+}

@@ -4,12 +4,15 @@ Copyright © 2023 Ekene Izukanne <ekeneizukanne@gmail.com>
 package cmd
 
 import (
+	"errors"
+	"os"
 	"strings"
 
-	"github.com/spatocode/bulaba/cloud"
-	"github.com/spatocode/bulaba/project"
-	"github.com/spatocode/bulaba/utils"
 	"github.com/spf13/cobra"
+
+	"github.com/spatocode/jerm"
+	"github.com/spatocode/jerm/cloud/aws"
+	"github.com/spatocode/jerm/internal/utils"
 )
 
 var deployCmd = &cobra.Command{
@@ -17,13 +20,31 @@ var deployCmd = &cobra.Command{
 	Short: "Deploy an application",
 	Long:  "Deploy an application",
 	Run: func(cmd *cobra.Command, args []string) {
-		p := project.LoadProject()
-		config := p.JSONToStruct()
+		// prod, err := cmd.Flags().GetBool("production")
+		config, err := jerm.ReadConfig(jerm.DefaultConfigFile)
+		if err != nil {
+			var pErr *os.PathError
+			if !errors.As(err, &pErr) {
+				utils.LogError(err.Error())
+			}
+		}
+
+		p, err := jerm.New(config)
+		if err != nil {
+			utils.LogError(err.Error())
+			return
+		}
+
 		if len(args) == 1 && strings.ToLower(args[0]) == "aws" {
-			lambda := cloud.LoadLambda(config)
-			p.Deploy(lambda)
+			platform, err := aws.NewLambda(config)
+			if err != nil {
+				utils.LogError(err.Error())
+				return
+			}
+			p.SetPlatform(platform)
+			p.Deploy()
 		} else {
-			utils.BulabaException("Unknown arg. Expected a cloud platform [aws]")
+			utils.LogError("Unknown arg. Expected a cloud platform [aws]")
 		}
 	},
 }
@@ -31,6 +52,7 @@ var deployCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(deployCmd)
 
+	// deployCmd.Flags().BoolP("production", "p", false, "Sets production stage")
 	// Here you will define your flags and configuration settings.
 
 	// Cobra supports Persistent Flags which will work for this command

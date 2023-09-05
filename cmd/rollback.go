@@ -4,27 +4,47 @@ Copyright © 2023 Ekene Izukanne <ekeneizukanne@gmail.com>
 package cmd
 
 import (
+	"errors"
+	"os"
 	"strings"
 
-	"github.com/spatocode/bulaba/cloud"
-	"github.com/spatocode/bulaba/project"
-	"github.com/spatocode/bulaba/utils"
 	"github.com/spf13/cobra"
+
+	"github.com/spatocode/jerm"
+	"github.com/spatocode/jerm/cloud/aws"
+	"github.com/spatocode/jerm/internal/utils"
 )
 
 // rollbackCmd represents the rollback command
 var rollbackCmd = &cobra.Command{
 	Use:   "rollback",
-	Short: "Rollsback to the previous revision of the deployment",
-	Long:  "Rollsback to the previous revision of the deployment",
+	Short: "Rolls back to the previous revision of the deployment",
+	Long:  "Rolls back to the previous revision of the deployment",
 	Run: func(cmd *cobra.Command, args []string) {
-		p := project.LoadProject()
-		config := p.JSONToStruct()
+		config, err := jerm.ReadConfig(jerm.DefaultConfigFile)
+		if err != nil {
+			var pErr *os.PathError
+			if !errors.As(err, &pErr) {
+				utils.LogError(err.Error())
+			}
+		}
+
+		p, err := jerm.New(config)
+		if err != nil {
+			utils.LogError(err.Error())
+			return
+		}
+
 		if len(args) == 1 && strings.ToLower(args[0]) == "aws" {
-			lambda := cloud.LoadLambda(config)
-			lambda.Rollback()
+			platform, err := aws.NewLambda(config)
+			if err != nil {
+				utils.LogError(err.Error())
+				return
+			}
+			p.SetPlatform(platform)
+			p.Rollback()
 		} else {
-			utils.BulabaException("Unknown arg. Expected a cloud platform [aws]")
+			utils.LogError("Unknown arg. Expected a cloud platform [aws]")
 		}
 	},
 }

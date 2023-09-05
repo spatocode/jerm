@@ -11,10 +11,13 @@ import (
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:     "bulaba",
+	Use:     "jerm",
 	Short:   "Deploy serverless applications to the cloud",
 	Long:    `Deploy serverless applications to the cloud`,
 	Version: "0.0.1",
+	CompletionOptions: cobra.CompletionOptions{
+		HiddenDefaultCmd: true,
+	},
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -31,7 +34,7 @@ func init() {
 	// Cobra supports persistent flags, which, if defined here,
 	// will be global for your application.
 
-	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.bulaba.yaml)")
+	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.jerm.yaml)")
 
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
