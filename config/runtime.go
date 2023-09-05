@@ -2,10 +2,7 @@ package config
 
 import (
 	"fmt"
-	"io/fs"
 	"log/slog"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/spatocode/jerm/internal/utils"
@@ -14,7 +11,7 @@ import (
 type Runtime struct {
 	Name    string
 	Version string
-	Entry	string
+	Entry   string
 }
 
 const (
@@ -75,40 +72,13 @@ func (r *Runtime) python() {
 	}
 	r.Version = version
 
-	if r.isDjango() {
-		entry, err := r.getDjangoProject()
+	if p.isDjango() {
+		entry, err := p.getDjangoProject()
 		if err != nil {
 			slog.Debug(err.Error())
 		}
 		r.Entry = entry
 	}
-}
-
-func (r *Runtime) isDjango() bool {
-	return utils.FileExists("manage.py")
-}
-
-func (r *Runtime) getDjangoProject() (string, error) {
-	workDir, _ := os.Getwd()
-	djangoPath := ""
-	walker := func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-
-		if !d.IsDir() && strings.HasSuffix(path, "settings.py") {
-			d := filepath.Dir(path)
-			splitPath := strings.Split(d, string(filepath.Separator))
-			djangoPath = splitPath[len(splitPath)-1]
-		}
-
-		return nil
-	}
-	err := filepath.WalkDir(workDir, walker)
-	if err != nil {
-		return "", err
-	}
-	return djangoPath, nil
 }
 
 func (r *Runtime) golang() {

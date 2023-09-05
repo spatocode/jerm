@@ -12,7 +12,7 @@ import (
 
 	"github.com/spatocode/jerm"
 	"github.com/spatocode/jerm/cloud/aws"
-	"github.com/spatocode/jerm/internal/utils"
+	"github.com/spatocode/jerm/internal/log"
 )
 
 // statusCmd represents the status command
@@ -25,26 +25,26 @@ var statusCmd = &cobra.Command{
 		if err != nil {
 			var pErr *os.PathError
 			if !errors.As(err, &pErr) {
-				utils.LogError(err.Error())
+				log.PrintError(err.Error())
 			}
 		}
 
 		p, err := jerm.New(config)
 		if err != nil {
-			utils.LogError(err.Error())
+			log.PrintError(err.Error())
 			return
 		}
 
 		if len(args) == 1 && strings.ToLower(args[0]) == "aws" {
 			platform, err := aws.NewLambda(config)
 			if err != nil {
-				utils.LogError(err.Error())
+				log.PrintError(err.Error())
 				return
 			}
 			p.SetPlatform(platform)
 			p.Logs()
 		} else {
-			utils.LogError("Unknown arg. Expected a cloud platform [aws]")
+			log.PrintError("Unknown arg. Expected a cloud platform [aws]")
 		}
 	},
 }

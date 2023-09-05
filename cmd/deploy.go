@@ -12,7 +12,7 @@ import (
 
 	"github.com/spatocode/jerm"
 	"github.com/spatocode/jerm/cloud/aws"
-	"github.com/spatocode/jerm/internal/utils"
+	"github.com/spatocode/jerm/internal/log"
 )
 
 var deployCmd = &cobra.Command{
@@ -20,31 +20,32 @@ var deployCmd = &cobra.Command{
 	Short: "Deploy an application",
 	Long:  "Deploy an application",
 	Run: func(cmd *cobra.Command, args []string) {
-		// prod, err := cmd.Flags().GetBool("production")
+		// verbose, _ := cmd.Flags().GetBool("verbose")
+
 		config, err := jerm.ReadConfig(jerm.DefaultConfigFile)
 		if err != nil {
 			var pErr *os.PathError
 			if !errors.As(err, &pErr) {
-				utils.LogError(err.Error())
+				log.PrintError(err.Error())
 			}
 		}
 
 		p, err := jerm.New(config)
 		if err != nil {
-			utils.LogError(err.Error())
+			log.PrintError(err.Error())
 			return
 		}
 
 		if len(args) == 1 && strings.ToLower(args[0]) == "aws" {
 			platform, err := aws.NewLambda(config)
 			if err != nil {
-				utils.LogError(err.Error())
+				log.PrintError(err.Error())
 				return
 			}
 			p.SetPlatform(platform)
 			p.Deploy()
 		} else {
-			utils.LogError("Unknown arg. Expected a cloud platform [aws]")
+			log.PrintError("Unknown arg. Expected a cloud platform [aws]")
 		}
 	},
 }

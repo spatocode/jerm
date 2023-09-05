@@ -1,13 +1,13 @@
 package utils
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"net/http"
 	"os"
 	"os/exec"
-
-	"github.com/fatih/color"
+	"strings"
 )
 
 func FileExists(path string) bool {
@@ -33,14 +33,15 @@ func GetShellCommandOutput(command string, args ...string) (string, error) {
 	return string(out), err
 }
 
-func LogError(msg string, v ...interface{})  {
-	color.Red(fmt.Sprintf(msg, v...))
-}
-
-func LogInfo(msg string, v ...interface{})  {
-	color.Cyan(fmt.Sprintf(msg, v...))
-}
-
-func LogWarn(msg string, v ...interface{})  {
-	color.Yellow(fmt.Sprintf(msg, v...))
+func GetStdIn(prompt string) (string, error) {
+	if prompt != "" {
+		fmt.Println(prompt)
+	}
+	reader := bufio.NewReader(os.Stdin)
+	value, err := reader.ReadString('\n')
+	if err != nil {
+		return "", err
+	}
+	fmt.Println()
+	return strings.TrimSpace(value), nil
 }

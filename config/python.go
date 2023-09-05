@@ -22,10 +22,12 @@ const (
 
 type Python struct{}
 
+// NewPythonConfig creates a new Python config
 func NewPythonConfig() *Python {
 	return &Python{}
 }
 
+// getVersion gets the python version
 func (p *Python) getVersion() (string, error) {
 	pythonVersion, err := utils.GetShellCommandOutput("python", "-V")
 	if err != nil || strings.Contains(pythonVersion, " 2.") {
@@ -87,7 +89,7 @@ func (p *Python) Build(config *Config) (string, error) {
 	return filepath.Join(tempDir, "handler.py"), nil
 }
 
-func (p *Python) copyNecessaryFilesToTempDir(src, dest string) {
+func (p *Python) copyNecessaryFilesToTempDir(src, dest string) error {
 	opt := copy.Options{
 		Skip: func(srcinfo os.FileInfo, src, dest string) (bool, error) {
 			for _, glob := range defaultIgnoredGlobs {
@@ -102,8 +104,10 @@ func (p *Python) copyNecessaryFilesToTempDir(src, dest string) {
 	}
 	err := copy.Copy(src, dest, opt)
 	if err != nil {
-		// utils.JermException(err)
+		return err
 	}
+
+	return nil
 }
 
 // installRequirements installs requirements listed in requirements.txt file
@@ -210,7 +214,11 @@ func (p *Python) extractWheel(wheelPath, outputDir string) error {
 	return nil
 }
 
-func (p *Python) getDjangoSettings() string {
+func (p *Python) isDjango() bool {
+	return utils.FileExists("manage.py")
+}
+
+func (p *Python) getDjangoProject() (string, error) {
 	workDir, _ := os.Getwd()
 	djangoPath := ""
 	walker := func(path string, d fs.DirEntry, err error) error {
@@ -219,17 +227,16 @@ func (p *Python) getDjangoSettings() string {
 		}
 
 		if !d.IsDir() && strings.HasSuffix(path, "settings.py") {
-			b := filepath.Base(path)
 			d := filepath.Dir(path)
 			splitPath := strings.Split(d, string(filepath.Separator))
-			djangoPath = fmt.Sprintf("%s.%s", splitPath[len(splitPath)-1], b)
+			djangoPath = splitPath[len(splitPath)-1]
 		}
 
 		return nil
 	}
 	err := filepath.WalkDir(workDir, walker)
 	if err != nil {
-		// utils.JermException(err)
+		return "", err
 	}
-	return djangoPath
+	return djangoPath, nil
 }

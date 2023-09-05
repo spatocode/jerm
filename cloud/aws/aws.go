@@ -1,8 +1,8 @@
 package aws
 
 const (
-	awsConfigDocsUrl         = "https://aws.github.io/aws-sdk-go-v2/docs/configuring-sdk/#specifying-credentials"
-	awsAssumePolicy = `{
+	awsConfigDocsUrl = "https://aws.github.io/aws-sdk-go-v2/docs/configuring-sdk/#specifying-credentials"
+	awsAssumePolicy  = `{
 		"Version": "2012-10-17",
 		"Statement": [
 	  		{

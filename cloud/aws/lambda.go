@@ -32,9 +32,11 @@ import (
 
 	"github.com/spatocode/jerm"
 	"github.com/spatocode/jerm/config"
+	"github.com/spatocode/jerm/internal/log"
 	"github.com/spatocode/jerm/internal/utils"
 )
 
+// Lambda is the AWS Lambda details
 type Lambda struct {
 	roleARN           *string
 	roleName          string
@@ -51,7 +53,7 @@ type Lambda struct {
 	timeout           int32
 }
 
-// NewLambda instantiates a new AWS Lambda platform
+// NewLambda instantiates a new AWS Lambda service
 func NewLambda(cfg *config.Config) (*Lambda, error) {
 	l := &Lambda{
 		roleName:          fmt.Sprintf("%s-JermLambdaServiceExecutionRole", cfg.Name),
@@ -86,6 +88,7 @@ func NewLambda(cfg *config.Config) (*Lambda, error) {
 	return l, nil
 }
 
+// checkPermissions checks the neccessary permissions needed to access AWS account
 func (l *Lambda) checkPermissions() error {
 	role, err := l.getIAMRole()
 	if err != nil {
@@ -102,7 +105,7 @@ func (l *Lambda) checkPermissions() error {
 
 // Build builds the deployment package for lambda
 func (l *Lambda) Build() (string, error) {
-	utils.LogInfo("Building Jerm project for Lambda...")
+	log.Info("Building Jerm project for Lambda...")
 	handler, err := config.NewPythonConfig().Build(l.config)
 	dir := filepath.Dir(handler)
 	if err != nil {
@@ -117,6 +120,7 @@ func (l *Lambda) Build() (string, error) {
 	return dir, nil
 }
 
+// getAWSConfig fetches AWS account configuration
 func (l *Lambda) getAWSConfig() (*aws.Config, *aws.Credentials, error) {
 	msg := fmt.Sprintf("Unable to find an AWS profile. Ensure you set up your AWS before using Jerm. See here for more info %s", awsConfigDocsUrl)
 	cfg, err := awsConfig.LoadDefaultConfig(context.TODO())
@@ -130,8 +134,8 @@ func (l *Lambda) getAWSConfig() (*aws.Config, *aws.Credentials, error) {
 	return &cfg, &creds, nil
 }
 
+// Logs shows AWS Cloudwatch logs
 func (l *Lambda) Logs() {
-	fmt.Println("Fetching logs...")
 	startTime := int64(time.Millisecond * 100000)
 	prevStart := startTime
 	for {
@@ -381,6 +385,7 @@ func (l *Lambda) Update(zipPath string) error {
 	return nil
 }
 
+// Undeploy deletes a Lambda deployment
 func (l *Lambda) Undeploy() error {
 	deployed, err := l.isAlreadyDeployed()
 	if err != nil {
@@ -409,6 +414,7 @@ func (l *Lambda) Undeploy() error {
 	return nil
 }
 
+// deleteLambdaFunction deletes a Lambda function
 func (l *Lambda) deleteLambdaFunction() {
 	fmt.Println("Deleting lambda function...")
 	client := lambda.NewFromConfig(l.AwsConfig)
@@ -417,6 +423,7 @@ func (l *Lambda) deleteLambdaFunction() {
 	})
 }
 
+// deleteAPIGatewayLogs deletes API gateway logs
 func (l *Lambda) deleteAPIGatewayLogs() error {
 	fmt.Println("Deleting API Gateway logs...")
 	apiIds, err := l.getRestApis()
@@ -439,6 +446,7 @@ func (l *Lambda) deleteAPIGatewayLogs() error {
 	return nil
 }
 
+// deleteAPIGateway deletes an API gateway
 func (l *Lambda) deleteAPIGateway() error {
 	fmt.Println("Deleting API Gateway...")
 	err := l.deleteStack()
@@ -469,6 +477,7 @@ func (l *Lambda) deleteLogGroup(groupName string) {
 	})
 }
 
+// Rollback rolls back a Lambda deployment to the previous version
 func (l *Lambda) Rollback() error {
 	var revisions []int
 	steps := 1
@@ -536,8 +545,9 @@ func (l *Lambda) listLambdaVersions() (*lambda.ListVersionsByFunctionOutput, err
 	return response, err
 }
 
+// CreateFunctionEntry creates a Lambda function handler file
 func (l *Lambda) CreateFunctionEntry(file string) error {
-	utils.LogInfo("Creating lambda handler...")
+	log.Info("Creating lambda handler...")
 	f, err := os.Create(file)
 	if err != nil {
 		return err
@@ -760,6 +770,7 @@ func (l *Lambda) setupApiGateway() error {
 	return nil
 }
 
+// deployAPIGateway deploys an AWS API gateway
 func (l *Lambda) deployAPIGateway(apiId *string) (string, error) {
 	fmt.Println("Deploying API Gateway...")
 	apiGatewayClient := apigateway.NewFromConfig(l.AwsConfig)
@@ -864,7 +875,7 @@ func (l *Lambda) uploadFileToS3(zipPath string) error {
 	defer file.Close()
 
 	fileName := filepath.Base(zipPath)
-	utils.LogInfo("Uploading file %s...\n", fileName)
+	log.Info("Uploading file %s...\n", fileName)
 	_, err = client.PutObject(context.TODO(), &s3.PutObjectInput{
 		Bucket: aws.String(l.config.Bucket),
 		Key:    aws.String(fileName),

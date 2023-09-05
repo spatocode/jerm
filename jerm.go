@@ -2,25 +2,23 @@ package jerm
 
 import (
 	"archive/zip"
-	"bufio"
-	"fmt"
 	"io"
 	"io/fs"
-	"log/slog"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
 
 	"github.com/spatocode/jerm/config"
-	"github.com/spatocode/jerm/internal/utils"
+	"github.com/spatocode/jerm/internal/log"
 )
 
+// Config is the Jerm configuration
 type Config config.Config
 
 const (
-	DefaultConfigFile       = "jerm.json"
-	ArchiveFile             = "jerm.zip"
+	DefaultConfigFile = "jerm.json"
+	ArchiveFile       = "jerm.zip"
 )
 
 var (
@@ -28,18 +26,22 @@ var (
 	ParseConfig = config.ParseConfig
 )
 
+// Project holds details of a Jerm project
 type Project struct {
 	config *config.Config
 	cloud  Platform
 }
 
+// New creates a new Jerm project
 func New(cfg *config.Config) (*Project, error) {
 	p := &Project{config: cfg}
 	return p, nil
 }
 
+// Logs shows the deployment logs
 func (p *Project) Logs() {
-
+	log.PrintInfo("Fetching logs...")
+	p.cloud.Logs()
 }
 
 // SetPlatform sets the cloud platform
@@ -49,38 +51,40 @@ func (p *Project) SetPlatform(cloud Platform) {
 
 // Deploy deploys the project to the cloud
 func (p *Project) Deploy() {
-	utils.LogInfo("Deploying project %s...", p.config.Name)
+	log.PrintInfo("Deploying project %s...", p.config.Name)
 	file, err := p.packageProject()
 	if err != nil {
-		slog.Error(err.Error())
+		log.PrintError(err.Error())
 		return
 	}
 
 	alreadyDeployed, err := p.cloud.Deploy(*file)
 	if err != nil {
-		slog.Error(err.Error())
+		log.PrintError(err.Error())
 		return
 	}
 
 	if alreadyDeployed {
-		utils.LogInfo("Project already deployed. Updating...")
+		log.PrintInfo("Project already deployed. Updating...")
 		p.Update(file)
 		return
 	}
 
 	os.RemoveAll(filepath.Dir(*file))
 
-	fmt.Println("Done!")
+	log.PrintInfo("Done!")
 }
 
+// Update updates the deployed project
 func (p *Project) Update(zipPath *string) {
+	log.Debug("Updating deployment...")
 	var err error
 	file := zipPath
 
 	if zipPath == nil {
 		file, err = p.packageProject()
 		if err != nil {
-			slog.Error(err.Error())
+			log.PrintError(err.Error())
 			return
 		}
 	}
@@ -88,24 +92,29 @@ func (p *Project) Update(zipPath *string) {
 	p.cloud.Update(*file)
 	os.RemoveAll(filepath.Dir(*file))
 
-	fmt.Println("Done!")
+	log.PrintInfo("Done!")
 }
 
+// Undeploy terminates a deployment
 func (p *Project) Undeploy() {
+	log.PrintInfo("Undeploying project %s...", p.config.Name)
 	p.cloud.Undeploy()
-	fmt.Println("Done!")
+	log.PrintInfo("Done!")
 }
 
+// Rollback rolls back a deployment to previous version
 func (p *Project) Rollback() {
-	fmt.Println("Rolling back deployment...")
+	log.PrintInfo("Rolling back deployment...")
 	p.cloud.Rollback()
 	p.cloud.Logs()
 }
 
+// packageProject packages a project for deployment
 func (p *Project) packageProject() (*string, error) {
+	log.Debug("Packaging project...")
 	dir, err := p.cloud.Build()
 	if err != nil {
-		slog.Error(err.Error())
+		log.PrintError(err.Error())
 		return nil, err
 	}
 
@@ -115,15 +124,16 @@ func (p *Project) packageProject() (*string, error) {
 	}
 
 	archivePath := path.Join(tempBuildDir, ArchiveFile)
-	p.archivePackage(archivePath, dir)
-	return &archivePath, nil
+	err = p.archivePackage(archivePath, dir)
+	return &archivePath, err
 }
 
-func (p *Project) archivePackage(archivePath, dir string) {
-	slog.Debug("Archiving package...")
+// archivePackage creates an archive file from a project
+func (p *Project) archivePackage(archivePath, dir string) error {
+	log.Debug("Archiving package...")
 	archive, err := os.Create(archivePath)
 	if err != nil {
-		// utils.JermException(err)
+		return err
 	}
 	defer archive.Close()
 
@@ -158,19 +168,8 @@ func (p *Project) archivePackage(archivePath, dir string) {
 	}
 	err = filepath.WalkDir(dir, walker)
 	if err != nil {
-		// utils.JermException(err)
+		return err
 	}
-}
 
-func (c *Project) GetStdIn(prompt string) (string, error) {
-	if prompt != "" {
-		fmt.Println(prompt)
-	}
-	reader := bufio.NewReader(os.Stdin)
-	value, err := reader.ReadString('\n')
-	if err != nil {
-		return "", err
-	}
-	fmt.Println()
-	return strings.TrimSpace(value), nil
+	return nil
 }
