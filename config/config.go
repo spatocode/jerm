@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"os"
 	"strings"
 	"time"
@@ -26,7 +25,7 @@ type Stage string
 type Config struct {
 	Name   string  `json:"name"`
 	Stage  string  `json:"stage"`
-	Bucket string  `json:"s3_bucket"`
+	Bucket string  `json:"bucket"`
 	Region string  `json:"region"`
 	Lambda *Lambda `json:"lambda"`
 	Dir    string  `json:"dir"`
@@ -50,12 +49,12 @@ func (c *Config) detectRegion() error {
 		return err
 	}
 	if r := cfg.Region; r != "" {
-		slog.Debug("extract region %s from aws default config", r)
+		log.Debug(fmt.Sprintf("extract region %s from aws default config", r))
 		c.Region = cfg.Region
 		return nil
 	}
 
-	slog.Debug("default region %s", DefaultRegion)
+	log.Debug(fmt.Sprintf("default region %s", DefaultRegion))
 	c.Region = DefaultRegion
 	return nil
 }
@@ -84,7 +83,7 @@ func (c *Config) ToJson(name string) error {
 func (c *Config) init() error {
 	workDir, err := os.Getwd()
 	if err != nil {
-		slog.Error(err.Error())
+		log.Debug(err.Error())
 		return err
 	}
 	splitPath := strings.Split(workDir, "/")

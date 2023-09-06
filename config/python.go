@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/otiai10/copy"
+	"github.com/spatocode/jerm/internal/log"
 	"github.com/spatocode/jerm/internal/utils"
 )
 
@@ -70,12 +71,13 @@ func (p *Python) Build(config *Config) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer os.RemoveAll(tempDir)
+
+	handlerPath := filepath.Join(tempDir, "handler.py")
 
 	venv, err := p.getVirtualEnvironment()
 	if err != nil {
-		err = p.installRequirements()
-		return tempDir, err
+		err = p.installRequirements(tempDir)
+		return handlerPath, err
 	}
 
 	sitePackages := path.Join(venv, "lib", DetectRuntime().Version, "site-packages")
@@ -86,7 +88,8 @@ func (p *Python) Build(config *Config) (string, error) {
 	p.installNecessaryDependencies(tempDir)
 	p.copyNecessaryFilesToTempDir(config.Dir, tempDir)
 	p.copyNecessaryFilesToTempDir(sitePackages, tempDir)
-	return filepath.Join(tempDir, "handler.py"), nil
+	log.Debug("build Python deployment package at", tempDir)
+	return handlerPath, nil
 }
 
 func (p *Python) copyNecessaryFilesToTempDir(src, dest string) error {
@@ -111,12 +114,12 @@ func (p *Python) copyNecessaryFilesToTempDir(src, dest string) error {
 }
 
 // installRequirements installs requirements listed in requirements.txt file
-func (p *Python) installRequirements() error {
+func (p *Python) installRequirements(dir string) error {
 	return nil
 }
 
 // installNecessaryDependencies installs dependencies needed to run serverless Python
-func (p *Python) installNecessaryDependencies(tempDir string) error {
+func (p *Python) installNecessaryDependencies(dir string) error {
 	dependencies := map[string]string{"lambda-wsgi-adapter": "0.1.1"}
 	for project, version := range dependencies {
 		url := fmt.Sprintf("https://pypi.org/pypi/%s/json", project)
@@ -141,7 +144,7 @@ func (p *Python) installNecessaryDependencies(tempDir string) error {
 			url := v.(map[string]interface{})["url"].(string)
 			filename := v.(map[string]interface{})["filename"].(string)
 			if filepath.Ext(filename) == ".whl" {
-				p.downloadDependencies(url, filename, tempDir)
+				p.downloadDependencies(url, filename, dir)
 			}
 		}
 	}
@@ -149,7 +152,7 @@ func (p *Python) installNecessaryDependencies(tempDir string) error {
 }
 
 // downloadDependencies downloads dependencies from pypi
-func (p *Python) downloadDependencies(url, filename, tempDir string) error {
+func (p *Python) downloadDependencies(url, filename, dir string) error {
 	res, err := utils.Request(url)
 	if err != nil {
 		return err
@@ -174,7 +177,7 @@ func (p *Python) downloadDependencies(url, filename, tempDir string) error {
 	defer file.Close()
 	file.Write(b)
 
-	if err := p.extractWheel(filenamePath, tempDir); err != nil {
+	if err := p.extractWheel(filenamePath, dir); err != nil {
 		return err
 	}
 

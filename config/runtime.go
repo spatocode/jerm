@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -9,6 +10,7 @@ import (
 )
 
 type Runtime struct {
+	Id		string
 	Name    string
 	Version string
 	Entry   string
@@ -55,22 +57,17 @@ func DetectRuntime() *Runtime {
 	return r
 }
 
-func (r *Runtime) lambdaRuntime() string {
-	if r.Version == "" {
-		return DefaultPythonRuntime
+func (r *Runtime) lambdaRuntime() (string, error) {
+	if r.Name == RuntimeUnknown {
+		return "", errors.New("cannot detect runtime. please specify runtime in your Jerm.json file")
 	}
 	v := strings.Split(r.Version, ".")
-	return fmt.Sprintf("%s%s.%s", r.Name, v[0], v[1])
+	return fmt.Sprintf("%s%s.%s", r.Name, v[0], v[1]), nil
 }
 
 func (r *Runtime) python() {
 	r.Name = RuntimePython
 	p := NewPythonConfig()
-	version, err := p.getVersion()
-	if err != nil {
-		log.Debug("error encountered while getting python version.")
-	}
-	r.Version = version
 
 	if p.isDjango() {
 		entry, err := p.getDjangoProject()
@@ -79,6 +76,14 @@ func (r *Runtime) python() {
 		}
 		r.Entry = entry
 	}
+
+	version, err := p.getVersion()
+	if err != nil {
+		log.Debug("error encountered while getting python version.")
+		r.Version = DefaultPythonVersion
+		return
+	}
+	r.Version = version
 }
 
 func (r *Runtime) golang() {

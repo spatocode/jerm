@@ -115,7 +115,6 @@ func (p *Project) packageProject() (*string, error) {
 	log.Debug("packaging project...")
 	dir, err := p.cloud.Build()
 	if err != nil {
-		log.PrintError(err.Error())
 		return nil, err
 	}
 
