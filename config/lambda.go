@@ -3,9 +3,9 @@ package config
 const (
 	DefaultTimeout       = 30
 	DefaultMemory        = 512
-	DefaultNodeRuntime   = "nodejs18.x"
-	DefaultPythonRuntime = "python3.11"
-	DefaultGoRuntime     = "go1.x"
+	DefaultNodeVersion   = "18."
+	DefaultPythonVersion = "3.9"
+	DefaultGoVersion     = "1.19"
 )
 
 // Lambda configuration.
@@ -17,7 +17,8 @@ type Lambda struct {
 	Handler string `json:"handler"`
 }
 
-func (l *Lambda) Defaults() {
+func (l *Lambda) Defaults() error {
+	var err error
 	if l.Memory == 0 {
 		l.Memory = DefaultMemory
 	}
@@ -27,11 +28,16 @@ func (l *Lambda) Defaults() {
 	}
 
 	if l.Runtime == "" {
-		l.Runtime = l.detectRuntime()
+		l.Runtime, err = l.detectRuntime()
+		if err != nil {
+			return err
+		}
 	}
+
+	return nil
 }
 
-func (l *Lambda) detectRuntime() string {
+func (l *Lambda) detectRuntime() (string, error) {
 	runtime := DetectRuntime()
 	return runtime.lambdaRuntime()
 }

@@ -16,7 +16,7 @@ func NewGolangConfig() *Golang {
 
 // getVersion gets the go version
 func (g *Golang) getVersion() (string, error) {
-	log.Debug("Getting go version...")
+	log.Debug("getting go version...")
 	goVersion, err := utils.GetShellCommandOutput("go", "version")
 	if err != nil {
 		return "", err
@@ -26,7 +26,7 @@ func (g *Golang) getVersion() (string, error) {
 		version := strings.Split(s[2], "go")
 		return version[1], nil
 	}
-	return "", errors.New("Encountered error on go version")
+	return "", errors.New("encountered error on go version")
 }
 
 // Build builds the go deployment package

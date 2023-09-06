@@ -2,9 +2,9 @@ package config
 
 import (
 	"fmt"
-	"log/slog"
 	"strings"
 
+	"github.com/spatocode/jerm/internal/log"
 	"github.com/spatocode/jerm/internal/utils"
 )
 
@@ -68,14 +68,14 @@ func (r *Runtime) python() {
 	p := NewPythonConfig()
 	version, err := p.getVersion()
 	if err != nil {
-		slog.Debug("Error encountered while getting python version.")
+		log.Debug("error encountered while getting python version.")
 	}
 	r.Version = version
 
 	if p.isDjango() {
 		entry, err := p.getDjangoProject()
 		if err != nil {
-			slog.Debug(err.Error())
+			log.Debug(err.Error())
 		}
 		r.Entry = entry
 	}

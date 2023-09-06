@@ -2,6 +2,7 @@ package jerm
 
 import (
 	"archive/zip"
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -51,7 +52,7 @@ func (p *Project) SetPlatform(cloud Platform) {
 
 // Deploy deploys the project to the cloud
 func (p *Project) Deploy() {
-	log.PrintInfo("Deploying project %s...", p.config.Name)
+	log.PrintInfo(fmt.Sprintf("Deploying project %s...", p.config.Name))
 	file, err := p.packageProject()
 	if err != nil {
 		log.PrintError(err.Error())
@@ -77,7 +78,7 @@ func (p *Project) Deploy() {
 
 // Update updates the deployed project
 func (p *Project) Update(zipPath *string) {
-	log.Debug("Updating deployment...")
+	log.Debug("updating deployment...")
 	var err error
 	file := zipPath
 
@@ -97,7 +98,7 @@ func (p *Project) Update(zipPath *string) {
 
 // Undeploy terminates a deployment
 func (p *Project) Undeploy() {
-	log.PrintInfo("Undeploying project %s...", p.config.Name)
+	log.PrintInfo(fmt.Sprintf("Undeploying project %s...", p.config.Name))
 	p.cloud.Undeploy()
 	log.PrintInfo("Done!")
 }
@@ -111,7 +112,7 @@ func (p *Project) Rollback() {
 
 // packageProject packages a project for deployment
 func (p *Project) packageProject() (*string, error) {
-	log.Debug("Packaging project...")
+	log.Debug("packaging project...")
 	dir, err := p.cloud.Build()
 	if err != nil {
 		log.PrintError(err.Error())
@@ -130,7 +131,7 @@ func (p *Project) packageProject() (*string, error) {
 
 // archivePackage creates an archive file from a project
 func (p *Project) archivePackage(archivePath, dir string) error {
-	log.Debug("Archiving package...")
+	log.Debug("archiving package...")
 	archive, err := os.Create(archivePath)
 	if err != nil {
 		return err

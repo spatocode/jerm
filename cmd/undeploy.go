@@ -5,7 +5,6 @@ package cmd
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"strings"
 
@@ -44,7 +43,7 @@ var undeployCmd = &cobra.Command{
 				return
 			}
 			p.SetPlatform(platform)
-			fmt.Println("Are you sure you want to undeploy? [y/n]")
+			log.PrintWarn("Are you sure you want to undeploy? [y/n]")
 			ans, err := utils.GetStdIn("")
 			if err != nil {
 				log.PrintError(err.Error())

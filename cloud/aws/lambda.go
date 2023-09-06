@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
@@ -66,7 +65,10 @@ func NewLambda(cfg *config.Config) (*Lambda, error) {
 	}
 
 	lambdaConfig := &config.Lambda{}
-	lambdaConfig.Defaults()
+	err := lambdaConfig.Defaults()
+	if err != nil {
+		return nil, err
+	}
 
 	l.config.Lambda = lambdaConfig
 	awsConfig, awsCreds, err := l.getAWSConfig()
@@ -105,11 +107,10 @@ func (l *Lambda) checkPermissions() error {
 
 // Build builds the deployment package for lambda
 func (l *Lambda) Build() (string, error) {
-	log.Info("Building Jerm project for Lambda...")
+	log.Debug("building Jerm project for Lambda...")
 	handler, err := config.NewPythonConfig().Build(l.config)
 	dir := filepath.Dir(handler)
 	if err != nil {
-		slog.Error(err.Error())
 		return "", err
 	}
 
@@ -141,7 +142,7 @@ func (l *Lambda) Logs() {
 	for {
 		logsEvents, err := l.getLogs(startTime)
 		if err != nil {
-			slog.Error(err.Error())
+			log.Debug(err.Error())
 			return
 		}
 		var filteredLogs []cwTypes.FilteredLogEvent
@@ -304,7 +305,7 @@ func (l *Lambda) waitTillFunctionBecomesUpdated() {
 		FunctionName: aws.String(l.config.Name),
 	}, time.Second*l.maxWaiterDuration)
 	if err != nil {
-		fmt.Println(err)
+		log.Debug(err.Error())
 	}
 }
 
@@ -396,7 +397,7 @@ func (l *Lambda) Undeploy() error {
 		return errors.New(msg)
 	}
 
-	fmt.Println("Undeploying...")
+	log.Debug("undeploying...")
 	err = l.deleteAPIGateway()
 	if err != nil {
 		return err
@@ -416,7 +417,7 @@ func (l *Lambda) Undeploy() error {
 
 // deleteLambdaFunction deletes a Lambda function
 func (l *Lambda) deleteLambdaFunction() {
-	fmt.Println("Deleting lambda function...")
+	log.Debug("deleting lambda function...")
 	client := lambda.NewFromConfig(l.AwsConfig)
 	client.DeleteFunction(context.TODO(), &lambda.DeleteFunctionInput{
 		FunctionName: aws.String(l.config.Name),
@@ -425,7 +426,7 @@ func (l *Lambda) deleteLambdaFunction() {
 
 // deleteAPIGatewayLogs deletes API gateway logs
 func (l *Lambda) deleteAPIGatewayLogs() error {
-	fmt.Println("Deleting API Gateway logs...")
+	log.Debug("deleting API Gateway logs...")
 	apiIds, err := l.getRestApis()
 	if err != nil {
 		return err
@@ -448,7 +449,7 @@ func (l *Lambda) deleteAPIGatewayLogs() error {
 
 // deleteAPIGateway deletes an API gateway
 func (l *Lambda) deleteAPIGateway() error {
-	fmt.Println("Deleting API Gateway...")
+	log.Debug("deleting API Gateway...")
 	err := l.deleteStack()
 	if err == nil {
 		return nil
@@ -533,7 +534,7 @@ func (l *Lambda) Rollback() error {
 	}
 
 	l.updateLambdaFunction(b)
-	fmt.Println("Done!")
+	log.PrintInfo("Done!")
 	return nil
 }
 
@@ -547,7 +548,7 @@ func (l *Lambda) listLambdaVersions() (*lambda.ListVersionsByFunctionOutput, err
 
 // CreateFunctionEntry creates a Lambda function handler file
 func (l *Lambda) CreateFunctionEntry(file string) error {
-	log.Info("Creating lambda handler...")
+	log.Debug("creating lambda handler...")
 	f, err := os.Create(file)
 	if err != nil {
 		return err
@@ -622,7 +623,7 @@ func (l *Lambda) createCFStack() error {
 		StackName: aws.String(l.config.Name),
 	})
 	if err != nil {
-		fmt.Println("Creating cloud formation stack...")
+		log.Debug("creating cloud formation stack...")
 		tags := []cfTypes.Tag{
 			{
 				Key:   aws.String("JermProject"),
@@ -686,7 +687,7 @@ func (l *Lambda) deleteStack() error {
 		StackName: aws.String(l.config.Name),
 	})
 	if err != nil {
-		fmt.Printf("Unable to find stack %s\n", l.config.Name)
+		log.Debug(fmt.Sprintf("unable to find stack %s\n", l.config.Name))
 		return err
 	}
 	tags := make(map[string]string)
@@ -694,7 +695,7 @@ func (l *Lambda) deleteStack() error {
 		tags[*tag.Key] = *tag.Value
 	}
 	if tags["JermProject"] == l.config.Name {
-		fmt.Println("Deleting cloud formation stack...")
+		log.Debug("deleting cloud formation stack...")
 		_, err := client.DeleteStack(context.TODO(), &cloudformation.DeleteStackInput{
 			StackName: aws.String(l.config.Name),
 		})
@@ -765,14 +766,14 @@ func (l *Lambda) setupApiGateway() error {
 		return err
 	}
 
-	fmt.Printf("API Gateway URL: %s", apiUrl)
+	log.PrintInfo("API Gateway URL:", apiUrl)
 
 	return nil
 }
 
 // deployAPIGateway deploys an AWS API gateway
 func (l *Lambda) deployAPIGateway(apiId *string) (string, error) {
-	fmt.Println("Deploying API Gateway...")
+	log.Debug("deploying API Gateway...")
 	apiGatewayClient := apigateway.NewFromConfig(l.AwsConfig)
 	_, err := apiGatewayClient.CreateDeployment(context.TODO(), &apigateway.CreateDeploymentInput{
 		StageName:        aws.String(l.config.Stage),
@@ -825,6 +826,7 @@ func (l *Lambda) deployAPIGateway(apiId *string) (string, error) {
 }
 
 func (l *Lambda) createS3Bucket(client *s3.Client, isConfig bool) error {
+	log.Debug("creating s3 bucket with config", isConfig)
 	if isConfig {
 		_, err := client.CreateBucket(context.TODO(), &s3.CreateBucketInput{
 			Bucket: aws.String(l.config.Bucket),
@@ -850,6 +852,7 @@ func (l *Lambda) uploadFileToS3(zipPath string) error {
 		if errors.As(err, &nfErr) {
 			err := l.createS3Bucket(client, true)
 			if err != nil {
+				log.Debug("error on creating s3 bucket with config", true)
 				err := l.createS3Bucket(client, false)
 				if err != nil {
 					return err
@@ -866,8 +869,6 @@ func (l *Lambda) uploadFileToS3(zipPath string) error {
 		return errors.New(msg)
 	}
 
-	fmt.Println(zipPath)
-
 	file, err := os.Open(zipPath)
 	if err != nil {
 		return err
@@ -875,7 +876,7 @@ func (l *Lambda) uploadFileToS3(zipPath string) error {
 	defer file.Close()
 
 	fileName := filepath.Base(zipPath)
-	log.Info("Uploading file %s...\n", fileName)
+	log.Debug(fmt.Sprintf("uploading file %s...\n", fileName))
 	_, err = client.PutObject(context.TODO(), &s3.PutObjectInput{
 		Bucket: aws.String(l.config.Bucket),
 		Key:    aws.String(fileName),
@@ -962,7 +963,7 @@ func (l *Lambda) updateLambdaFunction(content []byte) (*string, error) {
 }
 
 func (l *Lambda) ensureIAMRolePolicy() error {
-	slog.Debug("Fetching IAM Role Policy...")
+	log.Debug("fetching IAM role policy...")
 	client := iam.NewFromConfig(l.AwsConfig)
 	_, err := client.GetRolePolicy(context.TODO(), &iam.GetRolePolicyInput{
 		RoleName:   &l.roleName,
@@ -971,7 +972,7 @@ func (l *Lambda) ensureIAMRolePolicy() error {
 	if err != nil {
 		var nseErr *iamTypes.NoSuchEntityException
 		if errors.As(err, &nseErr) {
-			slog.Debug("IAM Role Policy not found. Creating new IAM Role Policy...")
+			log.Debug("IAM role policy not found. creating new IAM role policy...")
 			_, perr := client.PutRolePolicy(context.TODO(), &iam.PutRolePolicyInput{
 				RoleName:       &l.roleName,
 				PolicyName:     &l.policyName,
@@ -988,7 +989,7 @@ func (l *Lambda) ensureIAMRolePolicy() error {
 }
 
 func (l *Lambda) getIAMRole() (*iamTypes.Role, error) {
-	slog.Debug("Fetching IAM Role...")
+	log.Debug("fetching IAM role...")
 	client := iam.NewFromConfig(l.AwsConfig)
 	resp, err := client.GetRole(context.TODO(), &iam.GetRoleInput{
 		RoleName: &l.roleName,
@@ -996,7 +997,7 @@ func (l *Lambda) getIAMRole() (*iamTypes.Role, error) {
 	if err != nil {
 		var nseErr *iamTypes.NoSuchEntityException
 		if errors.As(err, &nseErr) {
-			slog.Debug("IAM Role not found. Creating new IAM Role ...")
+			log.Debug("IAM role not found. creating new IAM role ...")
 			resp, err := l.createIAMRole()
 			return resp.Role, err
 		}
@@ -1017,6 +1018,5 @@ func (l *Lambda) createIAMRole() (*iam.CreateRoleOutput, error) {
 		return nil, err
 	}
 
-	slog.Debug("Created Role: %s\n", *resp.Role.RoleName)
 	return resp, nil
 }

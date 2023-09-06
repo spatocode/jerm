@@ -2,7 +2,6 @@ package log
 
 import (
 	"log/slog"
-	"os"
 
 	"github.com/fatih/color"
 )
@@ -14,37 +13,17 @@ var (
 )
 
 func Info(msg string, v ...interface{}) {
-	opts := &slog.HandlerOptions{
-		Level: slog.LevelInfo,
-	}
-	handler := slog.NewTextHandler(os.Stdout, opts)
-	logger := slog.New(handler)
-	logger.Info(msg, v...)
+	slog.Info(msg, v...)
 }
 
 func Debug(msg string, v ...interface{}) {
-	opts := &slog.HandlerOptions{
-		Level: slog.LevelDebug,
-	}
-	handler := slog.NewTextHandler(os.Stdout, opts)
-	logger := slog.New(handler)
-	logger.Debug(msg, v...)
+	slog.Debug(msg, v...)
 }
 
 func Warn(msg string, v ...interface{}) {
-	opts := &slog.HandlerOptions{
-		Level: slog.LevelWarn,
-	}
-	handler := slog.NewTextHandler(os.Stdout, opts)
-	logger := slog.New(handler)
-	logger.Warn(msg, v...)
+	slog.Warn(msg, v...)
 }
 
 func Error(msg string, v ...interface{}) {
-	opts := &slog.HandlerOptions{
-		Level: slog.LevelError,
-	}
-	handler := slog.NewTextHandler(os.Stdout, opts)
-	logger := slog.New(handler)
-	logger.Error(msg, v...)
+	slog.Error(msg, v...)
 }

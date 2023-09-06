@@ -8,6 +8,8 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+
+	"github.com/spatocode/jerm/internal/log"
 )
 
 func FileExists(path string) bool {
@@ -35,7 +37,7 @@ func GetShellCommandOutput(command string, args ...string) (string, error) {
 
 func GetStdIn(prompt string) (string, error) {
 	if prompt != "" {
-		fmt.Println(prompt)
+		log.PrintInfo(prompt)
 	}
 	reader := bufio.NewReader(os.Stdin)
 	value, err := reader.ReadString('\n')
