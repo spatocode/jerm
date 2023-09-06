@@ -67,17 +67,20 @@ func (p *Project) Deploy() {
 
 	if alreadyDeployed {
 		log.PrintInfo("Project already deployed. Updating...")
-		p.Update(file)
+		err = p.Update(file)
+		if err != nil {
+			log.PrintError(err.Error())
+			return
+		}
 		return
 	}
 
-	os.RemoveAll(filepath.Dir(*file))
-
 	log.PrintInfo("Done!")
+	os.RemoveAll(*file)
 }
 
 // Update updates the deployed project
-func (p *Project) Update(zipPath *string) {
+func (p *Project) Update(zipPath *string) error {
 	log.Debug("updating deployment...")
 	var err error
 	file := zipPath
@@ -85,15 +88,15 @@ func (p *Project) Update(zipPath *string) {
 	if zipPath == nil {
 		file, err = p.packageProject()
 		if err != nil {
-			log.PrintError(err.Error())
-			return
+			return err
 		}
 	}
 
 	p.cloud.Update(*file)
-	os.RemoveAll(filepath.Dir(*file))
+	defer os.RemoveAll(*file)
 
 	log.PrintInfo("Done!")
+	return nil
 }
 
 // Undeploy terminates a deployment
@@ -118,12 +121,7 @@ func (p *Project) packageProject() (*string, error) {
 		return nil, err
 	}
 
-	tempBuildDir, err := os.MkdirTemp(os.TempDir(), "jerm-build")
-	if err != nil {
-		return nil, err
-	}
-
-	archivePath := path.Join(tempBuildDir, ArchiveFile)
+	archivePath := path.Join(p.config.Dir, ArchiveFile)
 	err = p.archivePackage(archivePath, dir)
 	return &archivePath, err
 }

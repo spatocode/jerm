@@ -17,10 +17,6 @@ import (
 	"github.com/spatocode/jerm/internal/utils"
 )
 
-const (
-	AwsPythonConfigDocs = "https://boto3.readthedocs.io/en/latest/guide/quickstart.html#configuration"
-)
-
 type Python struct{}
 
 // NewPythonConfig creates a new Python config
@@ -88,7 +84,7 @@ func (p *Python) Build(config *Config) (string, error) {
 	p.installNecessaryDependencies(tempDir)
 	p.copyNecessaryFilesToTempDir(config.Dir, tempDir)
 	p.copyNecessaryFilesToTempDir(sitePackages, tempDir)
-	log.Debug("build Python deployment package at", tempDir)
+	log.Debug(fmt.Sprintf("build Python deployment package at %s", tempDir))
 	return handlerPath, nil
 }
 
@@ -120,6 +116,7 @@ func (p *Python) installRequirements(dir string) error {
 
 // installNecessaryDependencies installs dependencies needed to run serverless Python
 func (p *Python) installNecessaryDependencies(dir string) error {
+	log.Debug("installing necessary Python dependencies...")
 	dependencies := map[string]string{"lambda-wsgi-adapter": "0.1.1"}
 	for project, version := range dependencies {
 		url := fmt.Sprintf("https://pypi.org/pypi/%s/json", project)
@@ -153,6 +150,7 @@ func (p *Python) installNecessaryDependencies(dir string) error {
 
 // downloadDependencies downloads dependencies from pypi
 func (p *Python) downloadDependencies(url, filename, dir string) error {
+	log.Debug("downloading dependencies...")
 	res, err := utils.Request(url)
 	if err != nil {
 		return err
@@ -185,6 +183,7 @@ func (p *Python) downloadDependencies(url, filename, dir string) error {
 }
 
 func (p *Python) extractWheel(wheelPath, outputDir string) error {
+	log.Debug("extracting python wheel...")
 	reader, err := zip.OpenReader(wheelPath)
 	if err != nil {
 		return err
