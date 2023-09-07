@@ -6,7 +6,6 @@ package cmd
 import (
 	"errors"
 	"os"
-	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -35,17 +34,13 @@ var statusCmd = &cobra.Command{
 			return
 		}
 
-		if len(args) == 1 && strings.ToLower(args[0]) == "aws" {
-			platform, err := aws.NewLambda(config)
-			if err != nil {
-				log.PrintError(err.Error())
-				return
-			}
-			p.SetPlatform(platform)
-			p.Logs()
-		} else {
-			log.PrintError("Unknown arg. Expected a cloud platform [aws]")
+		platform, err := aws.NewLambda(config)
+		if err != nil {
+			log.PrintError(err.Error())
+			return
 		}
+		p.SetPlatform(platform)
+		p.Logs()
 	},
 }
 

@@ -6,7 +6,6 @@ package cmd
 import (
 	"errors"
 	"os"
-	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -36,26 +35,22 @@ var undeployCmd = &cobra.Command{
 			return
 		}
 
-		if len(args) == 1 && strings.ToLower(args[0]) == "aws" {
-			platform, err := aws.NewLambda(config)
-			if err != nil {
-				log.PrintError(err.Error())
-				return
-			}
-			p.SetPlatform(platform)
-			log.PrintWarn("Are you sure you want to undeploy? [y/n]")
-			ans, err := utils.GetStdIn("")
-			if err != nil {
-				log.PrintError(err.Error())
-				return
-			}
-			if ans != "y" {
-				return
-			}
-			p.Undeploy()
-		} else {
-			log.PrintError("Unknown arg. Expected a cloud platform [aws]")
+		platform, err := aws.NewLambda(config)
+		if err != nil {
+			log.PrintError(err.Error())
+			return
 		}
+		p.SetPlatform(platform)
+		log.PrintWarn("Are you sure you want to undeploy? [y/n]")
+		ans, err := utils.GetStdIn("")
+		if err != nil {
+			log.PrintError(err.Error())
+			return
+		}
+		if ans != "y" {
+			return
+		}
+		p.Undeploy()
 	},
 }
 
