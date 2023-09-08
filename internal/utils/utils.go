@@ -12,6 +12,14 @@ import (
 	"github.com/spatocode/jerm/internal/log"
 )
 
+func RemoveLocalFile(zipPath string) error {
+	err := os.Remove(zipPath)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func FileExists(path string) bool {
 	if _, err := os.Stat(path); err == nil {
 		return true

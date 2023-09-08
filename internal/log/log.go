@@ -17,7 +17,7 @@ func Info(msg string, v ...interface{}) {
 }
 
 func Debug(msg string, v ...interface{}) {
-	slog.Debug(msg, v...)
+	slog.Info(msg, v...)
 }
 
 func Warn(msg string, v ...interface{}) {

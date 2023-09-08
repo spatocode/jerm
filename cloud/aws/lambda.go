@@ -14,20 +14,8 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/apigateway"
-	agTypes "github.com/aws/aws-sdk-go-v2/service/apigateway/types"
-	"github.com/aws/aws-sdk-go-v2/service/cloudformation"
-	cfTypes "github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
-	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
-	cwTypes "github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs/types"
-	"github.com/aws/aws-sdk-go-v2/service/iam"
-	iamTypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
 	lambdaTypes "github.com/aws/aws-sdk-go-v2/service/lambda/types"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
-	s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"
-	cf "github.com/awslabs/goformation/v7/cloudformation"
-	cfApigateway "github.com/awslabs/goformation/v7/cloudformation/apigateway"
 
 	"github.com/spatocode/jerm"
 	"github.com/spatocode/jerm/config"
@@ -35,18 +23,17 @@ import (
 	"github.com/spatocode/jerm/internal/utils"
 )
 
-// Lambda is the AWS Lambda details
+// Lambda is the AWS Lambda operations
 type Lambda struct {
-	roleARN           *string
-	roleName          string
-	policyName        string
+	iam               *IAM
+	s3                *S3
+	cloudwatch        *CloudWatch
+	apigateway        *ApiGateway
 	functionHandler   string
-	functionArn       *string
 	description       string
-	AwsConfig         aws.Config
-	AwsCreds          aws.Credentials
+	awsConfig         aws.Config
+	awsCreds          aws.Credentials
 	config            *config.Config
-	cfTemplate        *cf.Template
 	defaultMaxRetry   int
 	maxWaiterDuration time.Duration
 	timeout           int32
@@ -55,8 +42,6 @@ type Lambda struct {
 // NewLambda instantiates a new AWS Lambda service
 func NewLambda(cfg *config.Config) (*Lambda, error) {
 	l := &Lambda{
-		roleName:          fmt.Sprintf("%s-JermLambdaServiceExecutionRole", cfg.Name),
-		policyName:        "jerm-permissions",
 		description:       "Jerm Deployment",
 		config:            cfg,
 		defaultMaxRetry:   3,
@@ -71,38 +56,27 @@ func NewLambda(cfg *config.Config) (*Lambda, error) {
 	}
 
 	l.config.Lambda = lambdaConfig
-	awsConfig, awsCreds, err := l.getAWSConfig()
+	awsConfig, awsCreds, err := l.getAwsConfig()
 	if err != nil {
 		return nil, err
 	}
-	l.AwsConfig, l.AwsCreds = *awsConfig, *awsCreds
+	l.awsConfig, l.awsCreds = *awsConfig, *awsCreds
+
+	l.cloudwatch = NewCloudWatch(cfg, *awsConfig)
+	l.s3 = NewS3(cfg, *awsConfig)
+	l.iam = NewIAM(cfg, *awsConfig)
 
 	err = l.config.ToJson(jerm.DefaultConfigFile)
 	if err != nil {
 		return nil, err
 	}
 
-	err = l.checkPermissions()
+	err = l.iam.checkPermissions()
 	if err != nil {
 		return nil, err
 	}
 
 	return l, nil
-}
-
-// checkPermissions checks the neccessary permissions needed to access AWS account
-func (l *Lambda) checkPermissions() error {
-	role, err := l.getIAMRole()
-	if err != nil {
-		return err
-	}
-	l.roleARN = role.Arn
-
-	err = l.ensureIAMRolePolicy()
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 // Build builds the deployment package for lambda
@@ -121,8 +95,8 @@ func (l *Lambda) Build() (string, error) {
 	return dir, nil
 }
 
-// getAWSConfig fetches AWS account configuration
-func (l *Lambda) getAWSConfig() (*aws.Config, *aws.Credentials, error) {
+// getAwsConfig fetches AWS account configuration
+func (l *Lambda) getAwsConfig() (*aws.Config, *aws.Credentials, error) {
 	msg := fmt.Sprintf("Unable to find an AWS profile. Ensure you set up your AWS before using Jerm. See here for more info %s", awsConfigDocsUrl)
 	cfg, err := awsConfig.LoadDefaultConfig(context.TODO())
 	if err != nil {
@@ -137,115 +111,7 @@ func (l *Lambda) getAWSConfig() (*aws.Config, *aws.Credentials, error) {
 
 // Logs shows AWS Cloudwatch logs
 func (l *Lambda) Logs() {
-	startTime := int64(time.Millisecond * 100000)
-	prevStart := startTime
-	for {
-		logsEvents, err := l.getLogs(startTime)
-		if err != nil {
-			log.Debug(err.Error())
-			return
-		}
-		var filteredLogs []cwTypes.FilteredLogEvent
-		for _, event := range logsEvents {
-			if *event.Timestamp > prevStart {
-				filteredLogs = append(filteredLogs, event)
-			}
-		}
-		l.printLogs(filteredLogs)
-		if filteredLogs != nil {
-			prevStart = *filteredLogs[len(filteredLogs)-1].Timestamp
-		}
-		time.Sleep(time.Second)
-	}
-}
-
-func (l *Lambda) printLogs(logs []cwTypes.FilteredLogEvent) {
-	for _, log := range logs {
-		message := log.Message
-		time := time.Unix(*log.Timestamp, 0)
-		if strings.Contains(*message, "START RequestId") ||
-			strings.Contains(*message, "REPORT RequestId") ||
-			strings.Contains(*message, "END RequestId") {
-			continue
-		}
-		fmt.Printf("[%s] %s\n", time, strings.TrimSpace(*message))
-	}
-}
-
-func (l *Lambda) getLogs(startTime int64) ([]cwTypes.FilteredLogEvent, error) {
-	var (
-		streamNames []string
-		response    *cloudwatchlogs.FilterLogEventsOutput
-		logEvents   []cwTypes.FilteredLogEvent
-	)
-
-	name := fmt.Sprintf("/aws/lambda/%s", l.config.Name)
-	streams, err := l.getLogStreams(name)
-	if err != nil {
-		var rnfErr *cwTypes.ResourceNotFoundException
-		if errors.As(err, &rnfErr) {
-			err := l.createLogStreams(name)
-			if err != nil {
-				return nil, err
-			}
-			return l.getLogs(startTime)
-		}
-		return nil, err
-	}
-
-	for _, stream := range streams {
-		streamNames = append(streamNames, *stream.LogStreamName)
-	}
-
-	for response == nil || response.NextToken != nil {
-		response, err = l.filterLogEvents(name, streamNames, startTime, response)
-		if err != nil {
-			return nil, err
-		}
-		logEvents = append(logEvents, response.Events...)
-	}
-	sort.Slice(logEvents, func(i int, j int) bool {
-		return *logEvents[i].Timestamp < *logEvents[j].Timestamp
-	})
-	return logEvents, nil
-}
-
-func (l *Lambda) createLogStreams(name string) error {
-	client := cloudwatchlogs.NewFromConfig(l.AwsConfig)
-	_, err := client.CreateLogGroup(context.TODO(), &cloudwatchlogs.CreateLogGroupInput{
-		LogGroupName: aws.String(name),
-	})
-	return err
-}
-
-func (l *Lambda) filterLogEvents(logName string, streamNames []string, startTime int64, logEvents *cloudwatchlogs.FilterLogEventsOutput) (*cloudwatchlogs.FilterLogEventsOutput, error) {
-	client := cloudwatchlogs.NewFromConfig(l.AwsConfig)
-	logEventsInput := &cloudwatchlogs.FilterLogEventsInput{
-		LogGroupName:   aws.String(logName),
-		LogStreamNames: streamNames,
-		StartTime:      aws.Int64(startTime),
-		EndTime:        aws.Int64(time.Now().UnixNano() / int64(time.Millisecond)),
-		Limit:          aws.Int32(10000),
-		Interleaved:    aws.Bool(true),
-	}
-	if logEvents != nil && logEvents.NextToken != nil {
-		logEventsInput.NextToken = logEvents.NextToken
-	}
-	resp, err := client.FilterLogEvents(context.TODO(), logEventsInput)
-	return resp, err
-}
-
-func (l *Lambda) getLogStreams(logName string) ([]cwTypes.LogStream, error) {
-	client := cloudwatchlogs.NewFromConfig(l.AwsConfig)
-	resp, err := client.DescribeLogStreams(context.TODO(), &cloudwatchlogs.DescribeLogStreamsInput{
-		LogGroupName: aws.String(logName),
-		Descending:   aws.Bool(true),
-		OrderBy:      cwTypes.OrderByLastEventTime,
-	})
-	if err != nil {
-		return nil, err
-	}
-	return resp.LogStreams, err
+	l.cloudwatch.monitor()
 }
 
 func (l *Lambda) Deploy(zipPath string) (bool, error) {
@@ -253,16 +119,16 @@ func (l *Lambda) Deploy(zipPath string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+
 	if deployed {
 		return true, nil
 	}
 
-	l.uploadFileToS3(zipPath)
+	l.s3.upload(zipPath)
 	functionArn, err := l.createLambdaFunction(zipPath)
 	if err != nil {
 		return false, err
 	}
-	l.functionArn = functionArn
 
 	err = l.waitTillFunctionBecomesActive()
 	if err != nil {
@@ -270,17 +136,17 @@ func (l *Lambda) Deploy(zipPath string) (bool, error) {
 	}
 
 	l.scheduleEvents()
-	err = l.setupApiGateway()
+	err = l.apigateway.setup(functionArn)
 	if err != nil {
 		return false, err
 	}
 
-	err = l.removeLocalFile(zipPath)
+	err = utils.RemoveLocalFile(zipPath)
 	if err != nil {
 		return false, err
 	}
 
-	err = l.removeFileFromS3(zipPath)
+	err = l.s3.delete(zipPath)
 	if err != nil {
 		return false, err
 	}
@@ -289,7 +155,7 @@ func (l *Lambda) Deploy(zipPath string) (bool, error) {
 }
 
 func (l *Lambda) waitTillFunctionBecomesActive() error {
-	client := lambda.NewFunctionActiveV2Waiter(lambda.NewFromConfig(l.AwsConfig))
+	client := lambda.NewFunctionActiveV2Waiter(lambda.NewFromConfig(l.awsConfig))
 	err := client.Wait(context.TODO(), &lambda.GetFunctionInput{
 		FunctionName: aws.String(l.config.Name),
 	}, time.Second*l.maxWaiterDuration)
@@ -300,7 +166,7 @@ func (l *Lambda) waitTillFunctionBecomesActive() error {
 }
 
 func (l *Lambda) waitTillFunctionBecomesUpdated() {
-	client := lambda.NewFunctionUpdatedV2Waiter(lambda.NewFromConfig(l.AwsConfig))
+	client := lambda.NewFunctionUpdatedV2Waiter(lambda.NewFromConfig(l.awsConfig))
 	err := client.Wait(context.TODO(), &lambda.GetFunctionInput{
 		FunctionName: aws.String(l.config.Name),
 	}, time.Second*l.maxWaiterDuration)
@@ -313,35 +179,8 @@ func (l *Lambda) scheduleEvents() {
 
 }
 
-func (l *Lambda) removeLocalFile(zipPath string) error {
-	err := os.Remove(zipPath)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (l *Lambda) removeFileFromS3(zipPath string) error {
-	client := s3.NewFromConfig(l.AwsConfig)
-	_, err := client.HeadBucket(context.TODO(), &s3.HeadBucketInput{
-		Bucket: aws.String(l.config.Bucket),
-	})
-	if err != nil {
-		return err
-	}
-
-	_, err = client.DeleteObject(context.TODO(), &s3.DeleteObjectInput{
-		Bucket: aws.String(l.config.Bucket),
-		Key:    aws.String(zipPath),
-	})
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 func (l *Lambda) Update(zipPath string) error {
-	err := l.uploadFileToS3(zipPath)
+	err := l.s3.upload(zipPath)
 	if err != nil {
 		return err
 	}
@@ -366,19 +205,18 @@ func (l *Lambda) Update(zipPath string) error {
 		return err
 	}
 
-	l.functionArn = functionArn
 	l.waitTillFunctionBecomesUpdated()
-	err = l.setupApiGateway()
+	err = l.apigateway.setup(functionArn)
 	if err != nil {
 		return err
 	}
 
-	err = l.removeLocalFile(zipPath)
+	err = utils.RemoveLocalFile(zipPath)
 	if err != nil {
 		return err
 	}
 
-	err = l.removeFileFromS3(zipPath)
+	err = l.s3.delete(zipPath)
 	if err != nil {
 		return err
 	}
@@ -398,19 +236,19 @@ func (l *Lambda) Undeploy() error {
 	}
 
 	log.Debug("undeploying...")
-	err = l.deleteAPIGateway()
+	err = l.apigateway.delete()
 	if err != nil {
 		return err
 	}
 
-	l.deleteAPIGatewayLogs()
+	err = l.apigateway.deleteLogs()
 	if err != nil {
 		return err
 	}
 
 	l.deleteLambdaFunction()
 	groupName := fmt.Sprintf("/aws/lambda/%s", l.config.Name)
-	l.deleteLogGroup(groupName)
+	l.cloudwatch.deleteLogGroup(groupName)
 
 	return nil
 }
@@ -418,64 +256,9 @@ func (l *Lambda) Undeploy() error {
 // deleteLambdaFunction deletes a Lambda function
 func (l *Lambda) deleteLambdaFunction() {
 	log.Debug("deleting lambda function...")
-	client := lambda.NewFromConfig(l.AwsConfig)
+	client := lambda.NewFromConfig(l.awsConfig)
 	client.DeleteFunction(context.TODO(), &lambda.DeleteFunctionInput{
 		FunctionName: aws.String(l.config.Name),
-	})
-}
-
-// deleteAPIGatewayLogs deletes API gateway logs
-func (l *Lambda) deleteAPIGatewayLogs() error {
-	log.Debug("deleting API Gateway logs...")
-	apiIds, err := l.getRestApis()
-	if err != nil {
-		return err
-	}
-	for _, id := range apiIds {
-		client := apigateway.NewFromConfig(l.AwsConfig)
-		resp, err := client.GetStages(context.TODO(), &apigateway.GetStagesInput{
-			RestApiId: id,
-		})
-		if err != nil {
-			return err
-		}
-		for _, item := range resp.Item {
-			groupName := fmt.Sprintf("API-Gateway-Execution-Logs_%s/%s", *id, *item.StageName)
-			l.deleteLogGroup(groupName)
-		}
-	}
-	return nil
-}
-
-// deleteAPIGateway deletes an API gateway
-func (l *Lambda) deleteAPIGateway() error {
-	err := l.deleteStack()
-	if err == nil {
-		return nil
-	}
-
-	apiIds, err := l.getRestApis()
-	if err != nil {
-		return err
-	}
-
-	log.Debug("deleting API Gateway...")
-	for _, id := range apiIds {
-		client := apigateway.NewFromConfig(l.AwsConfig)
-		_, err := client.DeleteRestApi(context.TODO(), &apigateway.DeleteRestApiInput{
-			RestApiId: id,
-		})
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (l *Lambda) deleteLogGroup(groupName string) {
-	client := cloudwatchlogs.NewFromConfig(l.AwsConfig)
-	client.DeleteLogGroup(context.TODO(), &cloudwatchlogs.DeleteLogGroupInput{
-		LogGroupName: aws.String(groupName),
 	})
 }
 
@@ -540,7 +323,7 @@ func (l *Lambda) Rollback() error {
 }
 
 func (l *Lambda) listLambdaVersions() (*lambda.ListVersionsByFunctionOutput, error) {
-	client := lambda.NewFromConfig(l.AwsConfig)
+	client := lambda.NewFromConfig(l.awsConfig)
 	response, err := client.ListVersionsByFunction(context.TODO(), &lambda.ListVersionsByFunctionInput{
 		FunctionName: aws.String(l.config.Name),
 	})
@@ -565,331 +348,6 @@ func (l *Lambda) CreateFunctionEntry(file string) error {
 	return nil
 }
 
-func (l *Lambda) getRestApis() ([]*string, error) {
-	var apiIds []*string
-	apiGatewayClient := apigateway.NewFromConfig(l.AwsConfig)
-	resp, err := apiGatewayClient.GetRestApis(context.TODO(), &apigateway.GetRestApisInput{
-		Limit: aws.Int32(500),
-	})
-	for _, item := range resp.Items {
-		if *item.Name == l.config.Name {
-			apiIds = append(apiIds, item.Id)
-		}
-	}
-	return apiIds, err
-}
-
-func (l *Lambda) getApiId() (*string, error) {
-	cloudformationClient := cloudformation.NewFromConfig(l.AwsConfig)
-	resp, err := cloudformationClient.DescribeStackResource(context.TODO(), &cloudformation.DescribeStackResourceInput{
-		StackName:         aws.String(l.config.Name),
-		LogicalResourceId: aws.String("Api"),
-	})
-	if err != nil {
-		apiId, err := l.getRestApis()
-		if err != nil {
-			return nil, err
-		}
-		if len(apiId) > 0 {
-			return apiId[0], err
-		}
-		return nil, err
-	}
-	return resp.StackResourceDetail.PhysicalResourceId, err
-}
-
-func (l *Lambda) createCFStack() error {
-	template := fmt.Sprintf("%s-template-%v.json", l.config.Name, time.Now().Unix())
-	data, err := l.cfTemplate.JSON()
-	if err != nil {
-		return err
-	}
-
-	file, err := os.Create(template)
-	if err != nil {
-		return err
-	}
-	_, err = file.Write(data)
-	if err != nil {
-		return err
-	}
-	l.uploadFileToS3(template)
-
-	url := fmt.Sprintf("https://s3.amazonaws.com/%s/%s", l.config.Bucket, template)
-	if l.AwsConfig.Region == "us-gov-west-1" {
-		url = fmt.Sprintf("https://s3-us-gov-west-1.amazonaws.com/%s/%s", l.config.Bucket, template)
-	}
-	client := cloudformation.NewFromConfig(l.AwsConfig)
-	_, err = client.DescribeStacks(context.TODO(), &cloudformation.DescribeStacksInput{
-		StackName: aws.String(l.config.Name),
-	})
-	if err != nil {
-		log.Debug("creating cloud formation stack...")
-		tags := []cfTypes.Tag{
-			{
-				Key:   aws.String("JermProject"),
-				Value: aws.String(l.config.Name),
-			},
-		}
-		_, err := client.CreateStack(context.TODO(), &cloudformation.CreateStackInput{
-			StackName:    aws.String(l.config.Name),
-			TemplateURL:  aws.String(url),
-			Tags:         tags,
-			Capabilities: make([]cfTypes.Capability, 0),
-		})
-		if err != nil {
-			return err
-		}
-	} else {
-		client.UpdateStack(context.TODO(), &cloudformation.UpdateStackInput{
-			StackName:    aws.String(l.config.Name),
-			TemplateURL:  aws.String(url),
-			Capabilities: make([]cfTypes.Capability, 0),
-		})
-	}
-
-	for {
-		time.Sleep(time.Second * 3)
-		resp, _ := client.DescribeStacks(context.TODO(), &cloudformation.DescribeStacksInput{
-			StackName: aws.String(l.config.Name),
-		})
-		if resp.Stacks == nil {
-			continue
-		}
-		if resp.Stacks[0].StackStatus == cfTypes.StackStatusCreateComplete || resp.Stacks[0].StackStatus == cfTypes.StackStatusUpdateComplete {
-			break
-		}
-
-		if resp.Stacks[0].StackStatus == cfTypes.StackStatusDeleteComplete ||
-			resp.Stacks[0].StackStatus == cfTypes.StackStatusDeleteInProgress ||
-			resp.Stacks[0].StackStatus == cfTypes.StackStatusRollbackInProgress ||
-			resp.Stacks[0].StackStatus == cfTypes.StackStatusUpdateRollbackCompleteCleanupInProgress ||
-			resp.Stacks[0].StackStatus == cfTypes.StackStatusUpdateRollbackComplete {
-			msg := "cloudFormation stack creation failed. Please check console"
-			return errors.New(msg)
-		}
-	}
-	err = l.removeFileFromS3(template)
-	if err != nil {
-		return err
-	}
-
-	err = l.removeLocalFile(template)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (l *Lambda) deleteStack() error {
-	client := cloudformation.NewFromConfig(l.AwsConfig)
-	resp, err := client.DescribeStacks(context.TODO(), &cloudformation.DescribeStacksInput{
-		StackName: aws.String(l.config.Name),
-	})
-	if err != nil {
-		log.Debug(fmt.Sprintf("unable to find stack %s\n", l.config.Name))
-		return err
-	}
-	tags := make(map[string]string)
-	for _, tag := range resp.Stacks[0].Tags {
-		tags[*tag.Key] = *tag.Value
-	}
-	if tags["JermProject"] == l.config.Name {
-		log.Debug("deleting cloud formation stack...")
-		_, err := client.DeleteStack(context.TODO(), &cloudformation.DeleteStackInput{
-			StackName: aws.String(l.config.Name),
-		})
-		if err != nil {
-			return err
-		}
-	} else {
-		return fmt.Errorf("JermProject not found")
-	}
-	return nil
-}
-
-func (l *Lambda) createMethods(resourceId string, depth int) {
-	pre := "aws-us-gov"
-	if l.AwsConfig.Region != "us-gov-west-1" {
-		pre = "aws"
-	}
-	integrationUri := fmt.Sprintf("arn:%s:apigateway:%s:lambda:path/2015-03-31/functions/%s/invocations", pre, l.AwsConfig.Region, *l.functionArn)
-	methodName := "ANY"
-	method := &cfApigateway.Method{}
-
-	method.RestApiId = cf.Ref("Api")
-	method.ResourceId = resourceId
-	method.HttpMethod = methodName
-	method.AuthorizationType = aws.String("NONE")
-	method.ApiKeyRequired = aws.Bool(false)
-	l.cfTemplate.Resources[fmt.Sprintf("%s%v", methodName, depth)] = method
-
-	method.Integration = &cfApigateway.Method_Integration{
-		CacheNamespace:        aws.String("none"),
-		Credentials:           l.roleARN,
-		IntegrationHttpMethod: aws.String("POST"),
-		Type:                  aws.String("AWS_PROXY"),
-		PassthroughBehavior:   aws.String("NEVER"),
-		Uri:                   &integrationUri,
-	}
-}
-
-func (l *Lambda) setupApiGateway() error {
-	template := cf.NewTemplate()
-	template.Description = "Auto generated by Jerm"
-	restApi := &cfApigateway.RestApi{
-		Name:        aws.String(l.config.Name),
-		Description: aws.String("Automatically created by Jerm"),
-	}
-	template.Resources["Api"] = restApi
-
-	rootId := cf.GetAtt("Api", "RootResourceId")
-	l.cfTemplate = template
-	l.createMethods(rootId, 0)
-
-	resource := &cfApigateway.Resource{}
-	resource.RestApiId = cf.Ref("Api")
-	resource.ParentId = rootId
-	resource.PathPart = "{proxy+}"
-	l.cfTemplate.Resources["ResourceAnyPathSlashed"] = resource
-	l.createMethods(cf.Ref("ResourceAnyPathSlashed"), 1)
-
-	l.createCFStack()
-
-	apiId, err := l.getApiId()
-	if err != nil {
-		return err
-	}
-
-	apiUrl, err := l.deployAPIGateway(apiId)
-	if err != nil {
-		return err
-	}
-
-	log.PrintInfo("API Gateway URL:", apiUrl)
-
-	return nil
-}
-
-// deployAPIGateway deploys an AWS API gateway
-func (l *Lambda) deployAPIGateway(apiId *string) (string, error) {
-	log.Debug("deploying API Gateway...")
-	apiGatewayClient := apigateway.NewFromConfig(l.AwsConfig)
-	_, err := apiGatewayClient.CreateDeployment(context.TODO(), &apigateway.CreateDeploymentInput{
-		StageName:        aws.String(l.config.Stage),
-		RestApiId:        apiId,
-		Description:      aws.String("Automatically created by Jerm"),
-		CacheClusterSize: agTypes.CacheClusterSizeSize0Point5Gb,
-	})
-	if err != nil {
-		msg := fmt.Sprintf("[Deployment Error] %s", err.Error())
-		return "", errors.New(msg)
-	}
-
-	_, err = apiGatewayClient.UpdateStage(context.TODO(), &apigateway.UpdateStageInput{
-		RestApiId: apiId,
-		StageName: aws.String(l.config.Stage),
-		PatchOperations: []agTypes.PatchOperation{
-			{
-				Op:    agTypes.OpReplace,
-				Path:  aws.String("/*/*/logging/loglevel"),
-				Value: aws.String("OFF"),
-			},
-			{
-				Op:    agTypes.OpReplace,
-				Path:  aws.String("/*/*/logging/dataTrace"),
-				Value: aws.String("false"),
-			},
-			{
-				Op:    agTypes.OpReplace,
-				Path:  aws.String("/*/*/metrics/enabled"),
-				Value: aws.String("false"),
-			},
-			{
-				Op:    agTypes.OpReplace,
-				Path:  aws.String("/*/*/caching/ttlInSeconds"),
-				Value: aws.String("300"),
-			},
-			{
-				Op:    agTypes.OpReplace,
-				Path:  aws.String("/*/*/caching/dataEncrypted"),
-				Value: aws.String("false"),
-			},
-		},
-	})
-	if err != nil {
-		msg := fmt.Sprintf("[Stage Update Error] %s", err)
-		return "", errors.New(msg)
-	}
-
-	return fmt.Sprintf("https://%s.execute-api.%s.amazonaws.com/%s\n", *apiId, l.AwsConfig.Region, l.config.Stage), nil
-}
-
-func (l *Lambda) createS3Bucket(client *s3.Client, isConfig bool) error {
-	log.Debug("creating s3 bucket with config", isConfig)
-	if isConfig {
-		_, err := client.CreateBucket(context.TODO(), &s3.CreateBucketInput{
-			Bucket: aws.String(l.config.Bucket),
-			CreateBucketConfiguration: &s3Types.CreateBucketConfiguration{
-				LocationConstraint: s3Types.BucketLocationConstraint(l.AwsConfig.Region),
-			},
-		})
-		return err
-	}
-	_, err := client.CreateBucket(context.TODO(), &s3.CreateBucketInput{
-		Bucket: aws.String(l.config.Bucket),
-	})
-	return err
-}
-
-func (l *Lambda) uploadFileToS3(zipPath string) error {
-	client := s3.NewFromConfig(l.AwsConfig)
-	_, err := client.HeadBucket(context.TODO(), &s3.HeadBucketInput{
-		Bucket: aws.String(l.config.Bucket),
-	})
-	if err != nil {
-		var nfErr *s3Types.NotFound
-		if errors.As(err, &nfErr) {
-			err := l.createS3Bucket(client, true)
-			if err != nil {
-				log.Debug("error on creating s3 bucket with config", true)
-				err := l.createS3Bucket(client, false)
-				if err != nil {
-					return err
-				}
-			}
-		} else {
-			return err
-		}
-	}
-
-	f, err := os.Stat(zipPath)
-	if f.Size() == 0 || err != nil {
-		msg := "encountered issue with packaged file"
-		return errors.New(msg)
-	}
-
-	file, err := os.Open(zipPath)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	fileName := filepath.Base(zipPath)
-	log.Debug(fmt.Sprintf("uploading file %s...\n", fileName))
-	_, err = client.PutObject(context.TODO(), &s3.PutObjectInput{
-		Bucket: aws.String(l.config.Bucket),
-		Key:    aws.String(fileName),
-		Body:   file,
-	})
-	if err != nil {
-		msg := "encountered error while uploading package. Aborting"
-		return errors.New(msg)
-	}
-	return nil
-}
-
 func (l *Lambda) isAlreadyDeployed() (bool, error) {
 	versions, err := l.getLambdaVersionsByFuction()
 	if err != nil {
@@ -899,7 +357,7 @@ func (l *Lambda) isAlreadyDeployed() (bool, error) {
 }
 
 func (l *Lambda) getLambdaVersionsByFuction() ([]lambdaTypes.FunctionConfiguration, error) {
-	client := lambda.NewFromConfig(l.AwsConfig)
+	client := lambda.NewFromConfig(l.awsConfig)
 	resp, err := client.ListVersionsByFunction(context.TODO(), &lambda.ListVersionsByFunctionInput{
 		FunctionName: aws.String(l.config.Name),
 	})
@@ -920,7 +378,7 @@ func (l *Lambda) createLambdaFunction(zipPath string) (*string, error) {
 		return function.Configuration.FunctionArn, nil
 	}
 	fileName := filepath.Base(zipPath)
-	client := lambda.NewFromConfig(l.AwsConfig)
+	client := lambda.NewFromConfig(l.awsConfig)
 	resp, err := client.CreateFunction(context.TODO(), &lambda.CreateFunctionInput{
 		Code: &lambdaTypes.FunctionCode{
 			S3Bucket: aws.String(l.config.Bucket),
@@ -928,7 +386,7 @@ func (l *Lambda) createLambdaFunction(zipPath string) (*string, error) {
 		},
 		FunctionName: aws.String(l.config.Name),
 		Description:  aws.String(l.description),
-		Role:         l.roleARN,
+		Role:         &l.config.Lambda.Role,
 		Runtime:      lambdaTypes.Runtime(l.config.Lambda.Runtime),
 		Handler:      aws.String(l.functionHandler),
 		Timeout:      aws.Int32(l.timeout),
@@ -940,7 +398,7 @@ func (l *Lambda) createLambdaFunction(zipPath string) (*string, error) {
 }
 
 func (l *Lambda) getLambdaFunction(name string) (*lambda.GetFunctionOutput, error) {
-	client := lambda.NewFromConfig(l.AwsConfig)
+	client := lambda.NewFromConfig(l.awsConfig)
 	resp, err := client.GetFunction(context.TODO(), &lambda.GetFunctionInput{
 		FunctionName: aws.String(name),
 	})
@@ -951,7 +409,7 @@ func (l *Lambda) getLambdaFunction(name string) (*lambda.GetFunctionOutput, erro
 }
 
 func (l *Lambda) updateLambdaFunction(content []byte) (*string, error) {
-	client := lambda.NewFromConfig(l.AwsConfig)
+	client := lambda.NewFromConfig(l.awsConfig)
 	resp, err := client.UpdateFunctionCode(context.TODO(), &lambda.UpdateFunctionCodeInput{
 		FunctionName: aws.String(l.config.Name),
 		ZipFile:      content,
@@ -961,63 +419,4 @@ func (l *Lambda) updateLambdaFunction(content []byte) (*string, error) {
 		return nil, err
 	}
 	return resp.FunctionArn, nil
-}
-
-func (l *Lambda) ensureIAMRolePolicy() error {
-	log.Debug("fetching IAM role policy...")
-	client := iam.NewFromConfig(l.AwsConfig)
-	_, err := client.GetRolePolicy(context.TODO(), &iam.GetRolePolicyInput{
-		RoleName:   &l.roleName,
-		PolicyName: &l.policyName,
-	})
-	if err != nil {
-		var nseErr *iamTypes.NoSuchEntityException
-		if errors.As(err, &nseErr) {
-			log.Debug("IAM role policy not found. creating new IAM role policy...")
-			_, perr := client.PutRolePolicy(context.TODO(), &iam.PutRolePolicyInput{
-				RoleName:       &l.roleName,
-				PolicyName:     &l.policyName,
-				PolicyDocument: aws.String(awsAttachPolicy),
-			})
-			if perr != nil {
-				return perr
-			}
-			return nil
-		}
-		return err
-	}
-	return nil
-}
-
-func (l *Lambda) getIAMRole() (*iamTypes.Role, error) {
-	log.Debug("fetching IAM role...")
-	client := iam.NewFromConfig(l.AwsConfig)
-	resp, err := client.GetRole(context.TODO(), &iam.GetRoleInput{
-		RoleName: &l.roleName,
-	})
-	if err != nil {
-		var nseErr *iamTypes.NoSuchEntityException
-		if errors.As(err, &nseErr) {
-			log.Debug("IAM role not found. creating new IAM role ...")
-			resp, err := l.createIAMRole()
-			return resp.Role, err
-		}
-		return nil, err
-	}
-
-	return resp.Role, nil
-}
-
-func (l *Lambda) createIAMRole() (*iam.CreateRoleOutput, error) {
-	client := iam.NewFromConfig(l.AwsConfig)
-	resp, err := client.CreateRole(context.TODO(), &iam.CreateRoleInput{
-		AssumeRolePolicyDocument: aws.String(awsAssumePolicy),
-		Path:                     aws.String("/"),
-		RoleName:                 &l.roleName,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return resp, nil
 }

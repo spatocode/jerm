@@ -10,7 +10,7 @@ import (
 )
 
 type Runtime struct {
-	Id		string
+	Id      string
 	Name    string
 	Version string
 	Entry   string
