@@ -171,12 +171,13 @@ func (a *ApiGateway) createCFStack() error {
 	if err != nil {
 		return err
 	}
-	a.s3.upload(template)
+	a.s3.Upload(template)
 
 	url := fmt.Sprintf("https://s3.amazonaws.com/%s/%s", a.config.Bucket, template)
 	if a.awsConfig.Region == "us-gov-west-1" {
 		url = fmt.Sprintf("https://s3-us-gov-west-1.amazonaws.com/%s/%s", a.config.Bucket, template)
 	}
+
 	client := cloudformation.NewFromConfig(a.awsConfig)
 	_, err = client.DescribeStacks(context.TODO(), &cloudformation.DescribeStacksInput{
 		StackName: aws.String(a.config.Name),
@@ -227,7 +228,8 @@ func (a *ApiGateway) createCFStack() error {
 			return errors.New(msg)
 		}
 	}
-	err = a.s3.delete(template)
+
+	err = a.s3.Delete(template)
 	if err != nil {
 		return err
 	}

@@ -29,7 +29,7 @@ func NewS3(config *config.Config, awsConfig aws.Config) *S3 {
 }
 
 // upload a file to AWS S3 bucket
-func (s *S3) upload(filePath string) error {
+func (s *S3) Upload(filePath string) error {
 	client := s3.NewFromConfig(s.awsConfig)
 	_, err := client.HeadBucket(context.TODO(), &s3.HeadBucketInput{
 		Bucket: aws.String(s.config.Bucket),
@@ -77,7 +77,7 @@ func (s *S3) upload(filePath string) error {
 }
 
 // delete a file from AWS S3 bucket
-func (s *S3) delete(filePath string) error {
+func (s *S3) Delete(filePath string) error {
 	client := s3.NewFromConfig(s.awsConfig)
 	_, err := client.HeadBucket(context.TODO(), &s3.HeadBucketInput{
 		Bucket: aws.String(s.config.Bucket),

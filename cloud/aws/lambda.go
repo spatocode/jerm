@@ -26,8 +26,8 @@ import (
 // Lambda is the AWS Lambda operations
 type Lambda struct {
 	iam               *IAM
-	s3                *S3
-	cloudwatch        *CloudWatch
+	s3                jerm.CloudStorage
+	cloudwatch        jerm.CloudMonitor
 	apigateway        *ApiGateway
 	functionHandler   string
 	description       string
@@ -111,7 +111,7 @@ func (l *Lambda) getAwsConfig() (*aws.Config, *aws.Credentials, error) {
 
 // Logs shows AWS Cloudwatch logs
 func (l *Lambda) Logs() {
-	l.cloudwatch.monitor()
+	l.cloudwatch.Monitor()
 }
 
 func (l *Lambda) Deploy(zipPath string) (bool, error) {
@@ -124,7 +124,7 @@ func (l *Lambda) Deploy(zipPath string) (bool, error) {
 		return true, nil
 	}
 
-	l.s3.upload(zipPath)
+	l.s3.Upload(zipPath)
 	functionArn, err := l.createLambdaFunction(zipPath)
 	if err != nil {
 		return false, err
@@ -146,7 +146,7 @@ func (l *Lambda) Deploy(zipPath string) (bool, error) {
 		return false, err
 	}
 
-	err = l.s3.delete(zipPath)
+	err = l.s3.Delete(zipPath)
 	if err != nil {
 		return false, err
 	}
@@ -180,7 +180,7 @@ func (l *Lambda) scheduleEvents() {
 }
 
 func (l *Lambda) Update(zipPath string) error {
-	err := l.s3.upload(zipPath)
+	err := l.s3.Upload(zipPath)
 	if err != nil {
 		return err
 	}
@@ -216,7 +216,7 @@ func (l *Lambda) Update(zipPath string) error {
 		return err
 	}
 
-	err = l.s3.delete(zipPath)
+	err = l.s3.Delete(zipPath)
 	if err != nil {
 		return err
 	}
@@ -247,8 +247,7 @@ func (l *Lambda) Undeploy() error {
 	}
 
 	l.deleteLambdaFunction()
-	groupName := fmt.Sprintf("/aws/lambda/%s", l.config.Name)
-	l.cloudwatch.deleteLogGroup(groupName)
+	l.cloudwatch.DeleteLog()
 
 	return nil
 }

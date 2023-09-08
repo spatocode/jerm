@@ -58,6 +58,7 @@ func (p *Project) Deploy() {
 		log.PrintError(err.Error())
 		return
 	}
+	defer os.RemoveAll(*file)
 
 	alreadyDeployed, err := p.cloud.Deploy(*file)
 	if err != nil {
@@ -76,7 +77,6 @@ func (p *Project) Deploy() {
 	}
 
 	log.PrintInfo("Done!")
-	os.RemoveAll(*file)
 }
 
 // Update updates the deployed project
