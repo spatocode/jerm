@@ -10,7 +10,7 @@ type CloudMonitor interface {
 	DeleteLog()
 }
 
-type Platform interface {
+type CloudPlatform interface {
 	Deploy(string) (bool, error)
 	Update(string) error
 	Undeploy() error

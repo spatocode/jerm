@@ -32,7 +32,6 @@ type Lambda struct {
 	functionHandler   string
 	description       string
 	awsConfig         aws.Config
-	awsCreds          aws.Credentials
 	config            *config.Config
 	defaultMaxRetry   int
 	maxWaiterDuration time.Duration
@@ -56,11 +55,11 @@ func NewLambda(cfg *config.Config) (*Lambda, error) {
 	}
 
 	l.config.Lambda = lambdaConfig
-	awsConfig, awsCreds, err := l.getAwsConfig()
+	awsConfig, err := l.getAwsConfig()
 	if err != nil {
 		return nil, err
 	}
-	l.awsConfig, l.awsCreds = *awsConfig, *awsCreds
+	l.awsConfig = *awsConfig
 
 	l.cloudwatch = NewCloudWatch(cfg, *awsConfig)
 	l.s3 = NewS3(cfg, *awsConfig)
@@ -96,17 +95,13 @@ func (l *Lambda) Build() (string, error) {
 }
 
 // getAwsConfig fetches AWS account configuration
-func (l *Lambda) getAwsConfig() (*aws.Config, *aws.Credentials, error) {
+func (l *Lambda) getAwsConfig() (*aws.Config, error) {
 	msg := fmt.Sprintf("Unable to find an AWS profile. Ensure you set up your AWS before using Jerm. See here for more info %s", awsConfigDocsUrl)
 	cfg, err := awsConfig.LoadDefaultConfig(context.TODO())
 	if err != nil {
-		return nil, nil, errors.New(msg)
+		return nil, errors.New(msg)
 	}
-	creds, err := cfg.Credentials.Retrieve(context.TODO())
-	if err != nil {
-		return nil, nil, errors.New(msg)
-	}
-	return &cfg, &creds, nil
+	return &cfg, nil
 }
 
 // Logs shows AWS Cloudwatch logs

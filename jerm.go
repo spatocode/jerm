@@ -30,7 +30,7 @@ var (
 // Project holds details of a Jerm project
 type Project struct {
 	config *config.Config
-	cloud  Platform
+	cloud  CloudPlatform
 }
 
 // New creates a new Jerm project
@@ -46,7 +46,7 @@ func (p *Project) Logs() {
 }
 
 // SetPlatform sets the cloud platform
-func (p *Project) SetPlatform(cloud Platform) {
+func (p *Project) SetPlatform(cloud CloudPlatform) {
 	p.cloud = cloud
 }
 
