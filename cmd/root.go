@@ -14,7 +14,7 @@ var rootCmd = &cobra.Command{
 	Use:     "jerm",
 	Short:   "Deploy serverless applications to the cloud",
 	Long:    `Deploy serverless applications to the cloud`,
-	Version: "0.0.1",
+	Version: "0.0.2",
 	CompletionOptions: cobra.CompletionOptions{
 		HiddenDefaultCmd: true,
 	},
