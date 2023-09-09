@@ -2,6 +2,7 @@ package aws
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -94,6 +95,41 @@ func (l *Lambda) Build() (string, error) {
 	return dir, nil
 }
 
+func (l *Lambda) Invoke(command string) error {
+	payload := fmt.Sprintf(`{"manage": "%s"}`, command)
+	return l.invokeLambdaFunction([]byte(payload))
+}
+
+// invokeLambdaFunction invokes a lambda function with payload
+func (l *Lambda) invokeLambdaFunction(payload []byte) error {
+	client := lambda.NewFromConfig(l.awsConfig)
+	out, err := client.Invoke(context.TODO(), &lambda.InvokeInput{
+		FunctionName:   &l.config.Name,
+		InvocationType: lambdaTypes.InvocationTypeRequestResponse,
+		LogType:        lambdaTypes.LogTypeTail,
+		Payload:        payload,
+	})
+	if err != nil {
+		return err
+	}
+
+	if out.LogResult != nil {
+		rawText, err := base64.StdEncoding.DecodeString(*out.LogResult)
+		if err != nil {
+			return err
+		}
+		log.PrintInfo(string(rawText))
+	} else {
+		log.PrintInfo(*out)
+	}
+
+	if out.FunctionError != nil {
+		return fmt.Errorf("%s - encountered an error while invoking function", *out.FunctionError)
+	}
+
+	return nil
+}
+
 // getAwsConfig fetches AWS account configuration
 func (l *Lambda) getAwsConfig() (*aws.Config, error) {
 	msg := fmt.Sprintf("Unable to find an AWS profile. Ensure you set up your AWS before using Jerm. See here for more info %s", awsConfigDocsUrl)
@@ -171,7 +207,7 @@ func (l *Lambda) waitTillFunctionBecomesUpdated() {
 }
 
 func (l *Lambda) scheduleEvents() {
-
+	
 }
 
 func (l *Lambda) Update(zipPath string) error {
