@@ -39,7 +39,7 @@ func (s *S3) Upload(filePath string) error {
 		if errors.As(err, &nfErr) {
 			err := s.createBucket(client, true)
 			if err != nil {
-				log.Debug("error on creating s3 bucket with config", true)
+				log.Debug(fmt.Sprintf("error on creating s3 bucket with config %t", true))
 				err := s.createBucket(client, false)
 				if err != nil {
 					return err
@@ -98,7 +98,7 @@ func (s *S3) Delete(filePath string) error {
 
 // createBucket creates an AWS S3 bucket
 func (s *S3) createBucket(client *s3.Client, isConfig bool) error {
-	log.Debug("creating s3 bucket with config", isConfig)
+	log.Debug(fmt.Sprintf("creating s3 bucket with config %t", isConfig))
 	if isConfig {
 		_, err := client.CreateBucket(context.TODO(), &s3.CreateBucketInput{
 			Bucket: aws.String(s.config.Bucket),

@@ -10,11 +10,12 @@ const (
 
 // Lambda configuration.
 type Lambda struct {
-	Runtime string `json:"runtime"`
-	Timeout int    `json:"timeout"`
-	Role    string `json:"role"`
-	Memory  int    `json:"memory"`
-	Handler string `json:"handler"`
+	Runtime  string `json:"runtime"`
+	Timeout  int    `json:"timeout"`
+	Role     string `json:"role"`
+	Memory   int    `json:"memory"`
+	Handler  string `json:"handler"`
+	KeepWarm bool   `json:"keep_warm"`
 }
 
 func (l *Lambda) Defaults() error {
@@ -28,7 +29,8 @@ func (l *Lambda) Defaults() error {
 	}
 
 	if l.Runtime == "" {
-		l.Runtime, err = l.detectRuntime()
+		runtime := l.detectRuntime()
+		l.Runtime, err = runtime.lambdaRuntime()
 		if err != nil {
 			return err
 		}
@@ -37,7 +39,7 @@ func (l *Lambda) Defaults() error {
 	return nil
 }
 
-func (l *Lambda) detectRuntime() (string, error) {
+func (l *Lambda) detectRuntime() *Runtime {
 	runtime := DetectRuntime()
-	return runtime.lambdaRuntime()
+	return runtime
 }

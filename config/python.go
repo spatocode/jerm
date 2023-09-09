@@ -24,6 +24,20 @@ func NewPythonConfig() *Python {
 	return &Python{}
 }
 
+func (p *Python) Entry() string {
+	switch {
+	case p.IsDjango():
+		workDir, _ := os.Getwd()
+		entry, err := p.getDjangoProject(workDir)
+		if err != nil {
+			log.Debug(err.Error())
+		}
+		return entry
+	default:
+		return ""
+	}
+}
+
 // getVersion gets the python version
 func (p *Python) getVersion() (string, error) {
 	pythonVersion, err := utils.GetShellCommandOutput("python", "-V")
@@ -76,7 +90,8 @@ func (p *Python) Build(config *Config) (string, error) {
 		return handlerPath, err
 	}
 
-	sitePackages := path.Join(venv, "lib", DetectRuntime().Version, "site-packages")
+	version := strings.Split(DetectRuntime().Version, ".")
+	sitePackages := path.Join(venv, "lib", fmt.Sprintf("%s%s.%s", DetectRuntime().Name, version[0], version[1]), "site-packages")
 	if runtime.GOOS == "windows" {
 		sitePackages = path.Join(venv, "Lib", "site-packages")
 	}
@@ -216,29 +231,36 @@ func (p *Python) extractWheel(wheelPath, outputDir string) error {
 	return nil
 }
 
-func (p *Python) isDjango() bool {
+func (p *Python) IsDjango() bool {
 	return utils.FileExists("manage.py")
 }
 
-func (p *Python) getDjangoProject() (string, error) {
-	workDir, _ := os.Getwd()
+// gets the Django project path
+func (p *Python) getDjangoProject(dir string) (string, error) {
+	// Not the best way for finding django project path
+	// Using this naive hack for now
 	djangoPath := ""
 	walker := func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
-		if !d.IsDir() && strings.HasSuffix(path, "settings.py") {
+		if !d.IsDir() && d.Name() == "settings.py" {
 			d := filepath.Dir(path)
 			splitPath := strings.Split(d, string(filepath.Separator))
 			djangoPath = splitPath[len(splitPath)-1]
+			return io.EOF
 		}
 
 		return nil
 	}
-	err := filepath.WalkDir(workDir, walker)
+	err := filepath.WalkDir(dir, walker)
 	if err != nil {
-		return "", err
+		if err == io.EOF {
+			err = nil
+		}
+		return djangoPath, err
 	}
+
 	return djangoPath, nil
 }

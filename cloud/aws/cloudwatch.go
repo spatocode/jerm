@@ -56,15 +56,15 @@ func (c *CloudWatch) Monitor() {
 
 // printLogs prints the cloudwatch logs to stdout
 func (c *CloudWatch) printLogs(logs []cwTypes.FilteredLogEvent) {
-	for _, log := range logs {
-		message := log.Message
-		time := time.Unix(*log.Timestamp, 0)
+	for _, l := range logs {
+		message := l.Message
+		time := time.Unix(*l.Timestamp/1000, 0)
 		if strings.Contains(*message, "START RequestId") ||
 			strings.Contains(*message, "REPORT RequestId") ||
 			strings.Contains(*message, "END RequestId") {
 			continue
 		}
-		fmt.Printf("[%s] %s\n", time, strings.TrimSpace(*message))
+		log.PrintInfo(fmt.Sprintf("[%s] %s\n", time, strings.TrimSpace(*message)))
 	}
 }
 

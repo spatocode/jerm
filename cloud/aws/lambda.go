@@ -64,6 +64,7 @@ func NewLambda(cfg *config.Config) (*Lambda, error) {
 	l.cloudwatch = NewCloudWatch(cfg, *awsConfig)
 	l.s3 = NewS3(cfg, *awsConfig)
 	l.iam = NewIAM(cfg, *awsConfig)
+	l.apigateway = NewApiGateway(cfg, *awsConfig)
 
 	err = l.config.ToJson(jerm.DefaultConfigFile)
 	if err != nil {
@@ -81,7 +82,12 @@ func NewLambda(cfg *config.Config) (*Lambda, error) {
 // Build builds the deployment package for lambda
 func (l *Lambda) Build() (string, error) {
 	log.Debug("building Jerm project for Lambda...")
-	handler, err := config.NewPythonConfig().Build(l.config)
+	p := config.NewPythonConfig()
+	if l.config.Entry == "" {
+		l.config.Entry = p.Entry()
+	}
+
+	handler, err := p.Build(l.config)
 	dir := filepath.Dir(handler)
 	if err != nil {
 		return "", err
@@ -171,7 +177,7 @@ func (l *Lambda) waitTillFunctionBecomesUpdated() {
 }
 
 func (l *Lambda) scheduleEvents() {
-
+	
 }
 
 func (l *Lambda) Update(zipPath string) error {
@@ -201,6 +207,8 @@ func (l *Lambda) Update(zipPath string) error {
 	}
 
 	l.waitTillFunctionBecomesUpdated()
+	l.scheduleEvents()
+
 	err = l.apigateway.setup(functionArn)
 	if err != nil {
 		return err
