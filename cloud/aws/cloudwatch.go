@@ -9,12 +9,22 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/cloudwatchevents"
+	"github.com/aws/aws-sdk-go-v2/service/cloudwatchevents/types"
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
 	cwTypes "github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs/types"
 
 	"github.com/spatocode/jerm/config"
 	"github.com/spatocode/jerm/internal/log"
 )
+
+// Event is an AWS Cloudwatch event
+type Event struct {
+	name        string
+	function    string
+	expression  string
+	description string
+}
 
 // CloudWatch is the AWS Cloudwatch operations
 type CloudWatch struct {
@@ -65,6 +75,19 @@ func (c *CloudWatch) printLogs(logs []cwTypes.FilteredLogEvent) {
 			continue
 		}
 		log.PrintInfo(fmt.Sprintf("[%s] %s\n", time, strings.TrimSpace(*message)))
+	}
+}
+
+func (c *CloudWatch) scheduleEvents(events []Event)  {
+	for _, event := range events {
+		client := cloudwatchevents.NewFromConfig(c.awsConfig)
+		client.PutRule(context.TODO(), &cloudwatchevents.PutRuleInput{
+			Name: aws.String(""),
+			Description: aws.String(event.description),
+			RoleArn: &c.config.Lambda.Role,
+			State: types.RuleStateEnabled,
+			ScheduleExpression: aws.String(""),
+		})
 	}
 }
 

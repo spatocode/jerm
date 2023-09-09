@@ -176,8 +176,18 @@ func (l *Lambda) waitTillFunctionBecomesUpdated() {
 	}
 }
 
-func (l *Lambda) scheduleEvents() {
+func (l *Lambda) scheduleEvents(events []Event) error {
+	if l.config.Lambda.KeepWarm {
+		event := Event{
+			name:        "jerm-keep-warm",
+			function:    "handler.keep_warm",
+			expression:  "rate(4 minutes)",
+			description: fmt.Sprintf("%s - Jerm Keep Warm", l.config.Name),
+		}
+		events = append(events, event)
+	}
 	
+	return nil
 }
 
 func (l *Lambda) Update(zipPath string) error {
