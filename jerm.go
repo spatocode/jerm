@@ -18,6 +18,7 @@ import (
 type Config config.Config
 
 const (
+	Version           = "0.0.2"
 	DefaultConfigFile = "jerm.json"
 	ArchiveFile       = "jerm.zip"
 )
@@ -92,7 +93,10 @@ func (p *Project) Update(zipPath *string) error {
 		}
 	}
 
-	p.cloud.Update(*file)
+	err = p.cloud.Update(*file)
+	if err != nil {
+		return err
+	}
 	defer os.RemoveAll(*file)
 
 	log.PrintInfo("Done!")
@@ -110,11 +114,13 @@ func (p *Project) Undeploy() {
 	log.PrintInfo("Done!")
 }
 
-// Rollback rolls back a deployment to previous version
-func (p *Project) Rollback() {
+// Rollback rolls back a deployment to previous versions
+func (p *Project) Rollback(steps int) {
 	log.PrintInfo("Rolling back deployment...")
-	p.cloud.Rollback()
-	p.cloud.Logs()
+	err := p.cloud.Rollback(steps)
+	if err != nil {
+		log.PrintError(err.Error())
+	}
 }
 
 // packageProject packages a project for deployment

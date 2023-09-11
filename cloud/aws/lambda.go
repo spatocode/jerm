@@ -23,6 +23,12 @@ import (
 	"github.com/spatocode/jerm/internal/utils"
 )
 
+const (
+	DefaultTimeout      = 30
+	DefaultWaitDuration = 20
+	DefaultMaxRetry     = 3
+)
+
 // Lambda is the AWS Lambda operations
 type Lambda struct {
 	access            *IAM
@@ -33,7 +39,7 @@ type Lambda struct {
 	description       string
 	awsConfig         aws.Config
 	config            *config.Config
-	defaultMaxRetry   int
+	retry             int
 	maxWaiterDuration time.Duration
 	timeout           int32
 }
@@ -43,9 +49,9 @@ func NewLambda(cfg *config.Config) (*Lambda, error) {
 	l := &Lambda{
 		description:       "Jerm Deployment",
 		config:            cfg,
-		defaultMaxRetry:   3,
-		maxWaiterDuration: 20,
-		timeout:           30,
+		retry:             DefaultMaxRetry,
+		maxWaiterDuration: DefaultWaitDuration,
+		timeout:           DefaultTimeout,
 	}
 
 	lambdaConfig := &config.Lambda{}
@@ -265,10 +271,9 @@ func (l *Lambda) deleteLambdaFunction() {
 	})
 }
 
-// Rollback rolls back a Lambda deployment to the previous version
-func (l *Lambda) Rollback() error {
+// Rollback rolls back a Lambda deployment to a number of previous versions `revision`
+func (l *Lambda) Rollback(steps int) error {
 	var revisions []int
-	steps := 1
 	response, err := l.listLambdaVersions()
 	if err != nil {
 		var rnfErr *lambdaTypes.ResourceNotFoundException
@@ -311,7 +316,7 @@ func (l *Lambda) Rollback() error {
 	}
 
 	if res.StatusCode != 200 {
-		msg := fmt.Sprintf("Unable to get version %v of code %s", steps, l.config.Name)
+		msg := fmt.Sprintf("Unable to get version %v of project %s", revisions[steps], l.config.Name)
 		return errors.New(msg)
 	}
 	defer res.Body.Close()
@@ -393,7 +398,7 @@ func (l *Lambda) createLambdaFunction(zipPath string) (*string, error) {
 		Runtime:      lambdaTypes.Runtime(l.config.Lambda.Runtime),
 		Handler:      aws.String(l.functionHandler),
 		Timeout:      aws.Int32(l.timeout),
-		Publish: true,
+		Publish:      true,
 	})
 	if err != nil {
 		return nil, err

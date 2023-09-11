@@ -15,6 +15,6 @@ type CloudPlatform interface {
 	Update(string) error
 	Undeploy() error
 	Build() (string, error)
-	Rollback() error
+	Rollback(int) error
 	Logs()
 }
