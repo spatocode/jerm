@@ -68,15 +68,6 @@ func (r *Runtime) lambdaRuntime() (string, error) {
 func (r *Runtime) python() {
 	r.Name = RuntimePython
 	p := NewPythonConfig()
-
-	if p.isDjango() {
-		entry, err := p.getDjangoProject()
-		if err != nil {
-			log.Debug(err.Error())
-		}
-		r.Entry = entry
-	}
-
 	version, err := p.getVersion()
 	if err != nil {
 		log.Debug("error encountered while getting python version.")

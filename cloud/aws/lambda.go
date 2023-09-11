@@ -26,9 +26,9 @@ import (
 
 // Lambda is the AWS Lambda operations
 type Lambda struct {
-	iam               *IAM
-	s3                jerm.CloudStorage
-	cloudwatch        jerm.CloudMonitor
+	access            *IAM
+	storage           jerm.CloudStorage
+	logs              jerm.CloudMonitor
 	apigateway        *ApiGateway
 	functionHandler   string
 	description       string
@@ -62,16 +62,17 @@ func NewLambda(cfg *config.Config) (*Lambda, error) {
 	}
 	l.awsConfig = *awsConfig
 
-	l.cloudwatch = NewCloudWatch(cfg, *awsConfig)
-	l.s3 = NewS3(cfg, *awsConfig)
-	l.iam = NewIAM(cfg, *awsConfig)
+	l.logs = NewCloudWatch(cfg, *awsConfig)
+	l.storage = NewS3(cfg, *awsConfig)
+	l.access = NewIAM(cfg, *awsConfig)
+	l.apigateway = NewApiGateway(cfg, *awsConfig)
 
 	err = l.config.ToJson(jerm.DefaultConfigFile)
 	if err != nil {
 		return nil, err
 	}
 
-	err = l.iam.checkPermissions()
+	err = l.access.checkPermissions()
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +83,12 @@ func NewLambda(cfg *config.Config) (*Lambda, error) {
 // Build builds the deployment package for lambda
 func (l *Lambda) Build() (string, error) {
 	log.Debug("building Jerm project for Lambda...")
-	handler, err := config.NewPythonConfig().Build(l.config)
+	p := config.NewPythonConfig()
+	if l.config.Entry == "" {
+		l.config.Entry = p.Entry()
+	}
+
+	handler, err := p.Build(l.config)
 	dir := filepath.Dir(handler)
 	if err != nil {
 		return "", err
@@ -140,9 +146,9 @@ func (l *Lambda) getAwsConfig() (*aws.Config, error) {
 	return &cfg, nil
 }
 
-// Logs shows AWS Cloudwatch logs
+// Logs shows AWS logs
 func (l *Lambda) Logs() {
-	l.cloudwatch.Monitor()
+	l.logs.Monitor()
 }
 
 func (l *Lambda) Deploy(zipPath string) (bool, error) {
@@ -155,7 +161,7 @@ func (l *Lambda) Deploy(zipPath string) (bool, error) {
 		return true, nil
 	}
 
-	l.s3.Upload(zipPath)
+	l.storage.Upload(zipPath)
 	functionArn, err := l.createLambdaFunction(zipPath)
 	if err != nil {
 		return false, err
@@ -177,7 +183,7 @@ func (l *Lambda) Deploy(zipPath string) (bool, error) {
 		return false, err
 	}
 
-	err = l.s3.Delete(zipPath)
+	err = l.storage.Delete(zipPath)
 	if err != nil {
 		return false, err
 	}
@@ -211,7 +217,7 @@ func (l *Lambda) scheduleEvents() {
 }
 
 func (l *Lambda) Update(zipPath string) error {
-	err := l.s3.Upload(zipPath)
+	err := l.storage.Upload(zipPath)
 	if err != nil {
 		return err
 	}
@@ -221,6 +227,7 @@ func (l *Lambda) Update(zipPath string) error {
 		return err
 	}
 	defer file.Close()
+
 	content, err := io.ReadAll(file)
 	if err != nil {
 		return err
@@ -237,6 +244,8 @@ func (l *Lambda) Update(zipPath string) error {
 	}
 
 	l.waitTillFunctionBecomesUpdated()
+	l.scheduleEvents()
+
 	err = l.apigateway.setup(functionArn)
 	if err != nil {
 		return err
@@ -247,7 +256,7 @@ func (l *Lambda) Update(zipPath string) error {
 		return err
 	}
 
-	err = l.s3.Delete(zipPath)
+	err = l.storage.Delete(zipPath)
 	if err != nil {
 		return err
 	}
@@ -278,7 +287,7 @@ func (l *Lambda) Undeploy() error {
 	}
 
 	l.deleteLambdaFunction()
-	l.cloudwatch.DeleteLog()
+	l.logs.DeleteLog()
 
 	return nil
 }
@@ -414,12 +423,13 @@ func (l *Lambda) createLambdaFunction(zipPath string) (*string, error) {
 			S3Bucket: aws.String(l.config.Bucket),
 			S3Key:    aws.String(fileName),
 		},
-		FunctionName: aws.String(l.config.Name),
+		FunctionName: aws.String(name),
 		Description:  aws.String(l.description),
 		Role:         &l.config.Lambda.Role,
 		Runtime:      lambdaTypes.Runtime(l.config.Lambda.Runtime),
 		Handler:      aws.String(l.functionHandler),
 		Timeout:      aws.Int32(l.timeout),
+		Publish: true,
 	})
 	if err != nil {
 		return nil, err

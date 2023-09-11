@@ -110,7 +110,11 @@ func (p *Project) Update(zipPath *string) error {
 // Undeploy terminates a deployment
 func (p *Project) Undeploy() {
 	log.PrintInfo(fmt.Sprintf("Undeploying project %s...", p.config.Name))
-	p.cloud.Undeploy()
+	err := p.cloud.Undeploy()
+	if err != nil {
+		log.PrintError(err.Error())
+		return
+	}
 	log.PrintInfo("Done!")
 }
 
