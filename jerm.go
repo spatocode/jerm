@@ -181,3 +181,11 @@ func (p *Project) archivePackage(archivePath, dir string) error {
 
 	return nil
 }
+
+func Verbose(verbose bool) {
+	if verbose {
+		os.Setenv("JERM_VERBOSE", "1")
+	} else {
+		os.Setenv("JERM_VERBOSE", "0")
+	}
+}

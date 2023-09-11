@@ -35,7 +35,7 @@ func init() {
 	// Cobra supports persistent flags, which, if defined here,
 	// will be global for your application.
 
-	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "Enable verbose mode")
+	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "enable verbose mode")
 	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.jerm.yaml)")
 
 	// Cobra also supports local flags, which will only run
