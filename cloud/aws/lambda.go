@@ -288,16 +288,14 @@ func (l *Lambda) Rollback(steps int) error {
 		return errors.New(msg)
 	}
 
-	if len(versions) < steps+1 {
+	if len(versions) <= steps+1 {
 		msg := "invalid revision for rollback. Aborting"
 		return errors.New(msg)
 	}
 
 	for _, revision := range versions {
-		if *revision.Version != "$LATEST" {
-			version, _ := strconv.Atoi(*revision.Version)
-			revisions = append(revisions, version)
-		}
+		version, _ := strconv.Atoi(*revision.Version)
+		revisions = append(revisions, version)
 	}
 
 	sort.Slice(revisions, func(i int, j int) bool {
@@ -344,6 +342,9 @@ func (l *Lambda) listLambdaVersions() ([]lambdaTypes.FunctionConfiguration, erro
 	response, err := client.ListVersionsByFunction(context.TODO(), &lambda.ListVersionsByFunctionInput{
 		FunctionName: aws.String(l.config.Name),
 	})
+	if err != nil {
+		return nil, err
+	}
 	return response.Versions, err
 }
 
@@ -369,6 +370,10 @@ func (l *Lambda) isAlreadyDeployed() (bool, error) {
 	log.Debug("fetching function code location...")
 	versions, err := l.listLambdaVersions()
 	if err != nil {
+		var rnfErr *lambdaTypes.ResourceNotFoundException
+		if errors.As(err, &rnfErr) {
+			return false, nil
+		}
 		return false, err
 	}
 	return len(versions) > 0, nil
