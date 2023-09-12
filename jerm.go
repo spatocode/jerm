@@ -121,6 +121,7 @@ func (p *Project) Rollback(steps int) {
 	if err != nil {
 		log.PrintError(err.Error())
 	}
+	log.PrintInfo("Done!")
 }
 
 // packageProject packages a project for deployment

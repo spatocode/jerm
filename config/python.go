@@ -96,7 +96,7 @@ func (p *Python) Build(config *Config) (string, error) {
 		sitePackages = path.Join(venv, "Lib", "site-packages")
 	}
 
-	p.installNecessaryDependencies(tempDir)
+	p.installNecessaryDependencies(tempDir, sitePackages)
 	p.copyNecessaryFilesToTempDir(config.Dir, tempDir)
 	p.copyNecessaryFilesToTempDir(sitePackages, tempDir)
 	log.Debug(fmt.Sprintf("build Python deployment package at %s", tempDir))
@@ -130,9 +130,16 @@ func (p *Python) installRequirements(dir string) error {
 }
 
 // installNecessaryDependencies installs dependencies needed to run serverless Python
-func (p *Python) installNecessaryDependencies(dir string) error {
+func (p *Python) installNecessaryDependencies(dir, sitePackages string) error {
 	log.Debug("installing necessary Python dependencies...")
-	dependencies := map[string]string{"lambda-wsgi-adapter": "0.1.1"}
+
+	dependencies := map[string]string{
+		"lambda-wsgi-adapter": "0.1.1",
+	}
+	if !utils.FileExists(filepath.Join(sitePackages, "werkzeug")) {
+		dependencies["werkzeug"] = "0.16.1"
+	}
+
 	for project, version := range dependencies {
 		url := fmt.Sprintf("https://pypi.org/pypi/%s/json", project)
 		res, err := utils.Request(url)
