@@ -112,7 +112,7 @@ func (c *Config) init() error {
 	return nil
 }
 
-func PrompConfig() (*Config, error) {
+func PromptConfig() (*Config, error) {
 	c := &Config{}
 	c.init()
 
