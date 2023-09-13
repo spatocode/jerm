@@ -76,7 +76,7 @@ func (c *CloudWatch) getLogs(startTime int64) ([]cwTypes.FilteredLogEvent, error
 		logEvents   []cwTypes.FilteredLogEvent
 	)
 
-	name := fmt.Sprintf("/aws/lambda/%s", c.config.Name)
+	name := fmt.Sprintf("/aws/lambda/%s", c.config.GetFunctionName())
 	streams, err := c.getLogStreams(name)
 	if err != nil {
 		var rnfErr *cwTypes.ResourceNotFoundException
@@ -157,6 +157,6 @@ func (c *CloudWatch) deleteLogGroup(groupName string) {
 }
 
 func (c *CloudWatch) DeleteLog() {
-	groupName := fmt.Sprintf("/aws/lambda/%s", c.config.Name)
+	groupName := fmt.Sprintf("/aws/lambda/%s", c.config.GetFunctionName())
 	c.deleteLogGroup(groupName)
 }

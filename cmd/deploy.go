@@ -4,9 +4,6 @@ Copyright © 2023 Ekene Izukanne <ekeneizukanne@gmail.com>
 package cmd
 
 import (
-	"errors"
-	"os"
-
 	"github.com/spf13/cobra"
 
 	"github.com/spatocode/jerm"
@@ -23,9 +20,10 @@ var deployCmd = &cobra.Command{
 
 		config, err := jerm.ReadConfig(jerm.DefaultConfigFile)
 		if err != nil {
-			var pErr *os.PathError
-			if !errors.As(err, &pErr) {
+			config, err = jerm.PromptConfig()
+			if err != nil {
 				log.PrintError(err.Error())
+				return
 			}
 		}
 

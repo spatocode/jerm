@@ -25,7 +25,7 @@ func NewIAM(cfg *config.Config, awsConfig aws.Config) *IAM {
 	return &IAM{
 		config:     cfg,
 		awsConfig:  awsConfig,
-		roleName:   fmt.Sprintf("%s-JermLambdaServiceExecutionRole", cfg.Name),
+		roleName:   fmt.Sprintf("%s-JermLambdaServiceExecutionRole", cfg.GetFunctionName()),
 		policyName: "jerm-permissions",
 	}
 }

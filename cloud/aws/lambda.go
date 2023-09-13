@@ -164,7 +164,7 @@ func (l *Lambda) Deploy(zipPath string) (bool, error) {
 func (l *Lambda) waitTillFunctionBecomesActive() error {
 	client := lambda.NewFunctionActiveV2Waiter(lambda.NewFromConfig(l.awsConfig))
 	err := client.Wait(context.TODO(), &lambda.GetFunctionInput{
-		FunctionName: aws.String(l.config.Name),
+		FunctionName: aws.String(l.config.GetFunctionName()),
 	}, time.Second*l.maxWaiterDuration)
 	if err != nil {
 		return err
@@ -175,7 +175,7 @@ func (l *Lambda) waitTillFunctionBecomesActive() error {
 func (l *Lambda) waitTillFunctionBecomesUpdated() {
 	client := lambda.NewFunctionUpdatedV2Waiter(lambda.NewFromConfig(l.awsConfig))
 	err := client.Wait(context.TODO(), &lambda.GetFunctionInput{
-		FunctionName: aws.String(l.config.Name),
+		FunctionName: aws.String(l.config.GetFunctionName()),
 	}, time.Second*l.maxWaiterDuration)
 	if err != nil {
 		log.Debug(err.Error())
@@ -203,7 +203,7 @@ func (l *Lambda) Update(zipPath string) error {
 		return err
 	}
 
-	_, err = l.getLambdaFunction(l.config.Name)
+	_, err = l.getLambdaFunction(l.config.GetFunctionName())
 	if err != nil {
 		return err
 	}
@@ -267,7 +267,7 @@ func (l *Lambda) deleteLambdaFunction() {
 	log.Debug("deleting lambda function...")
 	client := lambda.NewFromConfig(l.awsConfig)
 	client.DeleteFunction(context.TODO(), &lambda.DeleteFunctionInput{
-		FunctionName: aws.String(l.config.Name),
+		FunctionName: aws.String(l.config.GetFunctionName()),
 	})
 }
 
@@ -302,7 +302,7 @@ func (l *Lambda) Rollback(steps int) error {
 		return revisions[i] > revisions[j]
 	})
 
-	name := fmt.Sprintf("%s:%v", l.config.Name, revisions[steps])
+	name := fmt.Sprintf("%s:%v", l.config.GetFunctionName(), revisions[steps])
 	function, err := l.getLambdaFunction(name)
 	if err != nil {
 		var rnfErr *lambdaTypes.ResourceNotFoundException
@@ -321,7 +321,7 @@ func (l *Lambda) Rollback(steps int) error {
 	}
 
 	if res.StatusCode != 200 {
-		msg := fmt.Sprintf("Unable to get version %v of project %s", revisions[steps], l.config.Name)
+		msg := fmt.Sprintf("Unable to get version %v of project %s", revisions[steps], l.config.GetFunctionName())
 		return errors.New(msg)
 	}
 	defer res.Body.Close()
@@ -340,7 +340,7 @@ func (l *Lambda) listLambdaVersions() ([]lambdaTypes.FunctionConfiguration, erro
 	log.Debug("list lambda versions by function...")
 	client := lambda.NewFromConfig(l.awsConfig)
 	response, err := client.ListVersionsByFunction(context.TODO(), &lambda.ListVersionsByFunctionInput{
-		FunctionName: aws.String(l.config.Name),
+		FunctionName: aws.String(l.config.GetFunctionName()),
 	})
 	if err != nil {
 		return nil, err
@@ -380,7 +380,7 @@ func (l *Lambda) isAlreadyDeployed() (bool, error) {
 }
 
 func (l *Lambda) createLambdaFunction(zipPath string) (*string, error) {
-	name := l.config.Name
+	name := l.config.GetFunctionName()
 	function, err := l.getLambdaFunction(name)
 	if err == nil {
 		return function.Configuration.FunctionArn, nil
@@ -423,7 +423,7 @@ func (l *Lambda) updateLambdaFunction(content []byte) (*string, error) {
 	log.Debug("updating lambda function code...")
 	client := lambda.NewFromConfig(l.awsConfig)
 	resp, err := client.UpdateFunctionCode(context.TODO(), &lambda.UpdateFunctionCodeInput{
-		FunctionName: aws.String(l.config.Name),
+		FunctionName: aws.String(l.config.GetFunctionName()),
 		ZipFile:      content,
 		Publish:      true,
 	})

@@ -24,8 +24,9 @@ const (
 )
 
 var (
-	ReadConfig  = config.ReadConfig
-	ParseConfig = config.ParseConfig
+	ReadConfig   = config.ReadConfig
+	ParseConfig  = config.ParseConfig
+	PromptConfig = config.PrompConfig
 )
 
 // Project holds details of a Jerm project
@@ -53,7 +54,7 @@ func (p *Project) SetPlatform(cloud CloudPlatform) {
 
 // Deploy deploys the project to the cloud
 func (p *Project) Deploy() {
-	log.PrintInfo(fmt.Sprintf("Deploying project %s...", p.config.Name))
+	log.PrintInfo(fmt.Sprintf("Deploying project %s...", p.config.GetFunctionName()))
 	file, err := p.packageProject()
 	if err != nil {
 		log.PrintError(err.Error())
@@ -105,7 +106,7 @@ func (p *Project) Update(zipPath *string) error {
 
 // Undeploy terminates a deployment
 func (p *Project) Undeploy() {
-	log.PrintInfo(fmt.Sprintf("Undeploying project %s...", p.config.Name))
+	log.PrintInfo(fmt.Sprintf("Undeploying project %s...", p.config.GetFunctionName()))
 	err := p.cloud.Undeploy()
 	if err != nil {
 		log.PrintError(err.Error())

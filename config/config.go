@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/spatocode/jerm/internal/log"
+	"github.com/spatocode/jerm/internal/utils"
 )
 
 const (
@@ -17,6 +19,7 @@ const (
 	Production    Stage = "production"
 	Staging       Stage = "staging"
 	DefaultRegion       = "us-west-2"
+	DefaultStage  Stage = Dev
 )
 
 type Stage string
@@ -30,6 +33,10 @@ type Config struct {
 	Lambda *Lambda `json:"lambda"`
 	Dir    string  `json:"dir"`
 	Entry  string  `json:"entry"`
+}
+
+func (c *Config) GetFunctionName() string {
+	return fmt.Sprintf("%s-%s", c.Name, c.Stage)
 }
 
 // Defaults extracts the default configuration
@@ -86,12 +93,16 @@ func (c *Config) init() error {
 		log.Debug(err.Error())
 		return err
 	}
-	splitPath := strings.Split(workDir, "/")
-	projectName := splitPath[len(splitPath)-1]
+
+	workspace, err := utils.GetWorkspaceName()
+	if err != nil {
+		log.Debug(err.Error())
+		return err
+	}
 
 	c.Stage = string(Dev)
 	c.Bucket = fmt.Sprintf("jerm-%d", time.Now().Unix())
-	c.Name = fmt.Sprintf("%s-%s", projectName, string(Dev))
+	c.Name = workspace
 	c.Dir = workDir
 
 	if err := c.Defaults(); err != nil {
@@ -101,17 +112,53 @@ func (c *Config) init() error {
 	return nil
 }
 
+func PrompConfig() (*Config, error) {
+	c := &Config{}
+	c.init()
+
+	name, err := utils.GetStdIn(fmt.Sprintf("Project name [%s]: <enter alternate name or press enter>", c.Name))
+	if err != nil {
+		return nil, errors.New("unexpected error occured")
+	}
+	if name != "" {
+		c.Name = name
+	}
+
+	stage, err := utils.GetStdIn(fmt.Sprintf("Deployment stage [%s]: <enter alternate stage or press enter>", DefaultStage))
+	if err != nil {
+		return nil, errors.New("unexpected error occured")
+	}
+	if stage != "" {
+		// TODO: Check is correct name
+		c.Stage = stage
+	}
+
+	region, err := utils.GetStdIn(fmt.Sprintf("Region [%s]: <enter alternate region or press enter>", c.Region))
+	if err != nil {
+		return nil, errors.New("unexpected error occured")
+	}
+	if region != "" {
+		c.Region = region
+	}
+
+	bucket, err := utils.GetStdIn(fmt.Sprintf("Bucket [%s]: <enter alternate bucket or press enter>", fmt.Sprintf("jerm-%d", time.Now().Unix())))
+	if err != nil {
+		return nil, errors.New("unexpected error occured")
+	}
+	if bucket != "" {
+		// TODO: Enforce bucket naming restrictions
+		// https://docs.aws.amazon.com/AmazonS3/latest/dev/BucketRestrictions.html#bucketnamingrules
+		c.Bucket = strings.TrimSpace(bucket)
+	}
+
+	return c, nil
+}
+
 // ReadConfig reads a configuration file
 func ReadConfig(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		cfg := &Config{}
-		err := cfg.init()
-		if err != nil {
-			return nil, err
-		}
-
-		return cfg, nil
+		return nil, err
 	}
 	return ParseConfig(data)
 }
