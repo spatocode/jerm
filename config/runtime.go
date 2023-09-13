@@ -23,25 +23,6 @@ const (
 	RuntimeNode    = "node"
 )
 
-var (
-	defaultIgnoredGlobs = []string{
-		".zip",
-		".exe",
-		".git",
-		".DS_Store",
-		"pip",
-		"venv",
-		"__pycache__",
-		".hg",
-		".Python",
-		"setuputils",
-		"tar.gz",
-		".git",
-		".vscode",
-		"docutils",
-	}
-)
-
 func DetectRuntime() *Runtime {
 	r := &Runtime{}
 	switch {

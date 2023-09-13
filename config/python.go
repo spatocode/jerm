@@ -104,19 +104,28 @@ func (p *Python) Build(config *Config) (string, error) {
 }
 
 func (p *Python) copyNecessaryFilesToTempDir(src, dest string) error {
+	ignoredFiles := defaultIgnoredGlobs
+
+	files, err := ReadIgnoredFiles()
+	if err == nil {
+		ignoredFiles = append(ignoredFiles, files...)
+	}
+
 	opt := copy.Options{
 		Skip: func(srcinfo os.FileInfo, src, dest string) (bool, error) {
-			for _, glob := range defaultIgnoredGlobs {
-				matchFile := strings.HasSuffix(src, glob) ||
-					strings.HasPrefix(src, glob) || src == glob
-				if matchFile {
-					return matchFile, nil
+			for _, ignoredFile := range ignoredFiles {
+				match, _ := filepath.Match(ignoredFile, srcinfo.Name())
+				matchedFile := srcinfo.Name() == ignoredFile || match ||
+					strings.HasSuffix(srcinfo.Name(), ignoredFile) ||
+					strings.HasPrefix(srcinfo.Name(), ignoredFile)
+				if matchedFile {
+					return matchedFile, nil
 				}
 			}
 			return false, nil
 		},
 	}
-	err := copy.Copy(src, dest, opt)
+	err = copy.Copy(src, dest, opt)
 	if err != nil {
 		return err
 	}
