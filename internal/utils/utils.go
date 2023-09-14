@@ -3,6 +3,7 @@ package utils
 import (
 	"bufio"
 	"context"
+	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -43,11 +44,11 @@ func GetShellCommandOutput(command string, args ...string) (string, error) {
 }
 
 // GetStdIn gets a stdin prompt from user
-func GetStdIn(prompt string) (string, error) {
+func ReadPromptInput(prompt string, input io.Reader) (string, error) {
 	if prompt != "" {
 		log.PrintInfo(prompt)
 	}
-	reader := bufio.NewReader(os.Stdin)
+	reader := bufio.NewReader(input)
 	value, err := reader.ReadString('\n')
 	if err != nil {
 		return "", err

@@ -3,7 +3,6 @@ package config
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -112,38 +111,37 @@ func (c *Config) init() error {
 	return nil
 }
 
-func PromptConfig() (*Config, error) {
-	c := &Config{}
+func (c *Config) PromptConfig() (*Config, error) {
 	c.init()
 
-	name, err := utils.GetStdIn(fmt.Sprintf("Project name [%s]: <enter alternate name or press enter>", c.Name))
+	name, err := utils.ReadPromptInput(fmt.Sprintf("Project name [%s]: <enter alternate name or press enter>", c.Name), os.Stdin)
 	if err != nil {
-		return nil, errors.New("unexpected error occured")
+		return nil, fmt.Errorf("unexpected error occured %s", err)
 	}
 	if name != "" {
 		c.Name = name
 	}
 
-	stage, err := utils.GetStdIn(fmt.Sprintf("Deployment stage [%s]: <enter alternate stage or press enter>", DefaultStage))
+	stage, err := utils.ReadPromptInput(fmt.Sprintf("Deployment stage [%s]: <enter alternate stage or press enter>", DefaultStage), os.Stdin)
 	if err != nil {
-		return nil, errors.New("unexpected error occured")
+		return nil, fmt.Errorf("unexpected error occured %s", err)
 	}
 	if stage != "" {
 		// TODO: Check is correct name
 		c.Stage = stage
 	}
 
-	region, err := utils.GetStdIn(fmt.Sprintf("Region [%s]: <enter alternate region or press enter>", c.Region))
+	region, err := utils.ReadPromptInput(fmt.Sprintf("Region [%s]: <enter alternate region or press enter>", c.Region), os.Stdin)
 	if err != nil {
-		return nil, errors.New("unexpected error occured")
+		return nil, fmt.Errorf("unexpected error occured %s", err)
 	}
 	if region != "" {
 		c.Region = region
 	}
 
-	bucket, err := utils.GetStdIn(fmt.Sprintf("Bucket [%s]: <enter alternate bucket or press enter>", fmt.Sprintf("jerm-%d", time.Now().Unix())))
+	bucket, err := utils.ReadPromptInput(fmt.Sprintf("Bucket [%s]: <enter alternate bucket or press enter>", fmt.Sprintf("jerm-%d", time.Now().Unix())), os.Stdin)
 	if err != nil {
-		return nil, errors.New("unexpected error occured")
+		return nil, fmt.Errorf("unexpected error occured %s", err)
 	}
 	if bucket != "" {
 		// TODO: Enforce bucket naming restrictions

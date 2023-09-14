@@ -24,9 +24,8 @@ const (
 )
 
 var (
-	ReadConfig   = config.ReadConfig
-	ParseConfig  = config.ParseConfig
-	PromptConfig = config.PromptConfig
+	ReadConfig  = config.ReadConfig
+	ParseConfig = config.ParseConfig
 )
 
 // Project holds details of a Jerm project

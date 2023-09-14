@@ -42,7 +42,7 @@ var undeployCmd = &cobra.Command{
 		}
 		p.SetPlatform(platform)
 		log.PrintWarn("Are you sure you want to undeploy? [y/n]")
-		ans, err := utils.GetStdIn("")
+		ans, err := utils.ReadPromptInput("", os.Stdin)
 		if err != nil {
 			log.PrintError(err.Error())
 			return
