@@ -38,17 +38,8 @@ func (c *Config) GetFunctionName() string {
 	return fmt.Sprintf("%s-%s", c.Name, c.Stage)
 }
 
-// Defaults extracts the default configuration
-func (c *Config) Defaults() error {
-	if err := c.detectRegion(); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// detectRegion detects an AWS region from the AWS credentials
-func (c *Config) detectRegion() error {
+// extractRegion detects an AWS region from the AWS credentials
+func (c *Config) extractRegion() error {
 	ctx := context.TODO()
 	cfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
@@ -86,7 +77,7 @@ func (c *Config) ToJson(name string) error {
 }
 
 // init initialize a configuration with it's default
-func (c *Config) init() error {
+func (c *Config) defaults() error {
 	workDir, err := os.Getwd()
 	if err != nil {
 		log.Debug(err.Error())
@@ -99,20 +90,20 @@ func (c *Config) init() error {
 		return err
 	}
 
-	c.Stage = string(Dev)
+	c.Stage = string(DefaultStage)
 	c.Bucket = fmt.Sprintf("jerm-%d", time.Now().Unix())
 	c.Name = workspace
 	c.Dir = workDir
 
-	if err := c.Defaults(); err != nil {
-		log.PrintWarn(err.Error())
+	if err = c.extractRegion(); err != nil {
+		return err
 	}
 
 	return nil
 }
 
 func (c *Config) PromptConfig() (*Config, error) {
-	c.init()
+	c.defaults()
 
 	name, err := utils.ReadPromptInput(fmt.Sprintf("Project name [%s]: <enter alternate name or press enter>", c.Name), os.Stdin)
 	if err != nil {
