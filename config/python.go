@@ -12,6 +12,8 @@ import (
 	"runtime"
 	"strings"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/otiai10/copy"
 	"github.com/spatocode/jerm/internal/log"
 	"github.com/spatocode/jerm/internal/utils"
@@ -96,14 +98,27 @@ func (p *Python) Build(config *Config) (string, error) {
 		sitePackages = path.Join(venv, "Lib", "site-packages")
 	}
 
-	p.installNecessaryDependencies(tempDir, sitePackages)
+	dependencies := map[string]string{
+		"lambda-wsgi-adapter": "0.1.1",
+	}
+	if !utils.FileExists(filepath.Join(sitePackages, "werkzeug")) {
+		dependencies["werkzeug"] = "0.16.1"
+	}
+
+	err = p.installNecessaryDependencies(tempDir, sitePackages, dependencies)
+	if err != nil {
+		return "", err
+	}
+
 	p.copyNecessaryFilesToTempDir(config.Dir, tempDir)
 	p.copyNecessaryFilesToTempDir(sitePackages, tempDir)
-	log.Debug(fmt.Sprintf("build Python deployment package at %s", tempDir))
-	return handlerPath, nil
+	log.Debug(fmt.Sprintf("built Python deployment package at %s", tempDir))
+
+	return handlerPath, err
 }
 
 func (p *Python) copyNecessaryFilesToTempDir(src, dest string) error {
+	log.Debug("copying necessary Python files...")
 	opt := copy.Options{
 		Skip: func(srcinfo os.FileInfo, src, dest string) (bool, error) {
 			for _, glob := range defaultIgnoredGlobs {
@@ -130,44 +145,49 @@ func (p *Python) installRequirements(dir string) error {
 }
 
 // installNecessaryDependencies installs dependencies needed to run serverless Python
-func (p *Python) installNecessaryDependencies(dir, sitePackages string) error {
+func (p *Python) installNecessaryDependencies(dir, sitePackages string, dependencies map[string]string) error {
 	log.Debug("installing necessary Python dependencies...")
-
-	dependencies := map[string]string{
-		"lambda-wsgi-adapter": "0.1.1",
-	}
-	if !utils.FileExists(filepath.Join(sitePackages, "werkzeug")) {
-		dependencies["werkzeug"] = "0.16.1"
-	}
+	var eg errgroup.Group
 
 	for project, version := range dependencies {
-		url := fmt.Sprintf("https://pypi.org/pypi/%s/json", project)
-		res, err := utils.Request(url)
-		if err != nil {
-			return err
-		}
-		defer res.Body.Close()
-		b, err := io.ReadAll(res.Body)
-		if err != nil {
-			return err
-		}
-		data := make(map[string]interface{})
-		err = json.Unmarshal(b, &data)
-		if err != nil {
-			return err
-		}
+		func (dep, ver string) {
+			eg.Go(func () error {
+				url := fmt.Sprintf("https://pypi.org/pypi/%s/json", dep)
+				res, err := utils.Request(url)
+				if err != nil {
+					return err
+				}
+				defer res.Body.Close()
+				b, err := io.ReadAll(res.Body)
+				if err != nil {
+					return err
+				}
+				data := make(map[string]interface{})
+				err = json.Unmarshal(b, &data)
+				if err != nil {
+					return err
+				}
 
-		r := data["releases"]
-		releases, _ := r.(map[string]interface{})
-		for _, v := range releases[version].([]interface{}) {
-			url := v.(map[string]interface{})["url"].(string)
-			filename := v.(map[string]interface{})["filename"].(string)
-			if filepath.Ext(filename) == ".whl" {
-				p.downloadDependencies(url, filename, dir)
-			}
-		}
+				r := data["releases"]
+				releases, _ := r.(map[string]interface{})
+				for _, v := range releases[ver].([]interface{}) {
+					url := v.(map[string]interface{})["url"].(string)
+					filename := v.(map[string]interface{})["filename"].(string)
+					if filepath.Ext(filename) == ".whl" {
+						err := p.downloadDependencies(url, filename, dir)
+						if err != nil {
+							return err
+						}
+					}
+				}
+				return nil
+			})
+		}(project, version)
 	}
-	return nil
+
+	err := eg.Wait()
+
+	return err
 }
 
 // downloadDependencies downloads dependencies from pypi
