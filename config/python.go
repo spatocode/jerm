@@ -88,8 +88,8 @@ func (p *Python) Build(config *Config) (string, error) {
 
 	venv, err := p.getVirtualEnvironment()
 	if err != nil {
-		err = p.installRequirements(tempDir)
-		return handlerPath, err
+		//TODO: installs requirements listed in requirements.txt file
+		return "", fmt.Errorf("cannot find a virtual env. Please ensure you're running in a virtual env")
 	}
 
 	version := strings.Split(DetectRuntime().Version, ".")
@@ -110,8 +110,16 @@ func (p *Python) Build(config *Config) (string, error) {
 		return "", err
 	}
 
-	p.copyNecessaryFilesToTempDir(config.Dir, tempDir)
-	p.copyNecessaryFilesToTempDir(sitePackages, tempDir)
+	err = p.copyNecessaryFilesToTempDir(config.Dir, tempDir)
+	if err != nil {
+		return "", err
+	}
+
+	err = p.copyNecessaryFilesToTempDir(sitePackages, tempDir)
+	if err != nil {
+		return "", err
+	}
+
 	log.Debug(fmt.Sprintf("built Python deployment package at %s", tempDir))
 
 	return handlerPath, err
@@ -140,9 +148,9 @@ func (p *Python) copyNecessaryFilesToTempDir(src, dest string) error {
 }
 
 // installRequirements installs requirements listed in requirements.txt file
-func (p *Python) installRequirements(dir string) error {
-	return nil
-}
+// func (p *Python) installRequirements(dir string) error {
+// 	return nil
+// }
 
 // installNecessaryDependencies installs dependencies needed to run serverless Python
 func (p *Python) installNecessaryDependencies(dir, sitePackages string, dependencies map[string]string) error {
@@ -226,6 +234,8 @@ func (p *Python) downloadDependencies(url, filename, dir string) error {
 
 func (p *Python) extractWheel(wheelPath, outputDir string) error {
 	log.Debug("extracting python wheel...")
+	var eg errgroup.Group
+
 	reader, err := zip.OpenReader(wheelPath)
 	if err != nil {
 		return err
@@ -233,29 +243,36 @@ func (p *Python) extractWheel(wheelPath, outputDir string) error {
 	defer reader.Close()
 
 	for _, file := range reader.File {
-		os.MkdirAll(filepath.Join(outputDir, filepath.Dir(file.Name)), 0755)
-		if err != nil {
-			return err
-		}
+		func (file *zip.File) {
+			eg.Go(func () error {
+				os.MkdirAll(filepath.Join(outputDir, filepath.Dir(file.Name)), 0755)
+				if err != nil {
+					return err
+				}
 
-		extractedFile, err := os.Create(filepath.Join(outputDir, file.Name))
-		if err != nil {
-			return err
-		}
-		defer extractedFile.Close()
+				extractedFile, err := os.Create(filepath.Join(outputDir, file.Name))
+				if err != nil {
+					return err
+				}
+				defer extractedFile.Close()
 
-		zippedFile, err := file.Open()
-		if err != nil {
-			return err
-		}
-		defer zippedFile.Close()
+				zippedFile, err := file.Open()
+				if err != nil {
+					return err
+				}
+				defer zippedFile.Close()
 
-		if _, err = io.Copy(extractedFile, zippedFile); err != nil {
-			return err
-		}
+				if _, err = io.Copy(extractedFile, zippedFile); err != nil {
+					return err
+				}
+				return nil
+			})
+		}(file)
 	}
 
-	return nil
+	err = eg.Wait()
+
+	return err
 }
 
 func (p *Python) IsDjango() bool {

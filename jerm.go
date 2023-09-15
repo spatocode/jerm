@@ -68,7 +68,7 @@ func (p *Project) Deploy() {
 	}
 
 	if alreadyDeployed {
-		log.PrintInfo("Project already deployed. Updating...")
+		log.Debug("project already deployed. updating...")
 		err = p.Update(file)
 		if err != nil {
 			log.PrintError(err.Error())
@@ -77,7 +77,6 @@ func (p *Project) Deploy() {
 		return
 	}
 
-	log.PrintInfo("Done!")
 }
 
 // Update updates the deployed project
@@ -99,7 +98,6 @@ func (p *Project) Update(zipPath *string) error {
 	}
 	defer os.RemoveAll(*file)
 
-	log.PrintInfo("Done!")
 	return nil
 }
 
@@ -127,6 +125,7 @@ func (p *Project) Rollback(steps int) {
 // packageProject packages a project for deployment
 func (p *Project) packageProject() (*string, error) {
 	log.Debug("packaging project...")
+
 	dir, err := p.cloud.Build()
 	if err != nil {
 		return nil, err
@@ -140,6 +139,7 @@ func (p *Project) packageProject() (*string, error) {
 // archivePackage creates an archive file from a project
 func (p *Project) archivePackage(archivePath, dir string) error {
 	log.Debug("archiving package...")
+
 	archive, err := os.Create(archivePath)
 	if err != nil {
 		return err
@@ -175,6 +175,7 @@ func (p *Project) archivePackage(archivePath, dir string) error {
 		}
 		return nil
 	}
+
 	err = filepath.WalkDir(dir, walker)
 	if err != nil {
 		return err

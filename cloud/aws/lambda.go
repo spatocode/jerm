@@ -90,6 +90,7 @@ func NewLambda(cfg *config.Config) (*Lambda, error) {
 // Build builds the deployment package for lambda
 func (l *Lambda) Build() (string, error) {
 	log.Debug("building Jerm project for Lambda...")
+
 	p := config.NewPythonConfig()
 	if l.config.Entry == "" {
 		l.config.Entry = p.Entry()
