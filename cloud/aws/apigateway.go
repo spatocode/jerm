@@ -64,7 +64,7 @@ func (a *ApiGateway) setup(functionArn *string) error {
 		return err
 	}
 
-	log.PrintInfo(fmt.Sprintf("Project %s is now live at %s", a.config.GetFunctionName(), apiUrl))
+	fmt.Printf("%s %s", log.Magenta("url:"), log.Green(apiUrl))
 
 	return nil
 }

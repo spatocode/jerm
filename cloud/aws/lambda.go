@@ -72,10 +72,12 @@ func NewLambda(cfg *config.Config) (*Lambda, error) {
 	l.access = NewIAM(cfg, *awsConfig)
 	l.apigateway = NewApiGateway(cfg, *awsConfig)
 
-	err = l.config.ToJson(jerm.DefaultConfigFile)
-	if err != nil {
-		return nil, err
-	}
+	go func() {
+		err := l.config.ToJson(jerm.DefaultConfigFile)
+		if err != nil {
+			log.PrintWarn(err)
+		}
+	}()
 
 	err = l.access.checkPermissions()
 	if err != nil {
@@ -88,10 +90,18 @@ func NewLambda(cfg *config.Config) (*Lambda, error) {
 // Build builds the deployment package for lambda
 func (l *Lambda) Build() (string, error) {
 	log.Debug("building Jerm project for Lambda...")
+
 	p := config.NewPythonConfig()
 	if l.config.Entry == "" {
 		l.config.Entry = p.Entry()
 	}
+
+	go func() {
+		err := l.config.ToJson(jerm.DefaultConfigFile)
+		if err != nil {
+			log.PrintWarn(err)
+		}
+	}()
 
 	handler, err := p.Build(l.config)
 	dir := filepath.Dir(handler)
