@@ -64,7 +64,7 @@ func (c *CloudWatch) printLogs(logs []cwTypes.FilteredLogEvent) {
 			strings.Contains(*message, "END RequestId") {
 			continue
 		}
-		log.PrintInfo(fmt.Sprintf("[%s] %s\n", time, strings.TrimSpace(*message)))
+		log.PrintfInfo("[%s] %s\n", time, strings.TrimSpace(*message))
 	}
 }
 
