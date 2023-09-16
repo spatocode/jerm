@@ -105,7 +105,7 @@ func (c *Config) defaults() error {
 func (c *Config) PromptConfig() (*Config, error) {
 	c.defaults()
 
-	name, err := utils.ReadPromptInput(fmt.Sprintf("Project name [%s]: <enter alternate name or press enter>", c.Name), os.Stdin)
+	name, err := utils.ReadPromptInput(fmt.Sprintf("Project name [%s]:", c.Name), os.Stdin)
 	if err != nil {
 		return nil, fmt.Errorf("unexpected error occured %s", err)
 	}
@@ -113,7 +113,7 @@ func (c *Config) PromptConfig() (*Config, error) {
 		c.Name = name
 	}
 
-	stage, err := utils.ReadPromptInput(fmt.Sprintf("Deployment stage [%s]: <enter alternate stage or press enter>", DefaultStage), os.Stdin)
+	stage, err := utils.ReadPromptInput(fmt.Sprintf("Deployment stage [%s]:", DefaultStage), os.Stdin)
 	if err != nil {
 		return nil, fmt.Errorf("unexpected error occured %s", err)
 	}
@@ -122,7 +122,7 @@ func (c *Config) PromptConfig() (*Config, error) {
 		c.Stage = stage
 	}
 
-	region, err := utils.ReadPromptInput(fmt.Sprintf("Region [%s]: <enter alternate region or press enter>", c.Region), os.Stdin)
+	region, err := utils.ReadPromptInput(fmt.Sprintf("Region [%s]:", c.Region), os.Stdin)
 	if err != nil {
 		return nil, fmt.Errorf("unexpected error occured %s", err)
 	}
@@ -130,7 +130,7 @@ func (c *Config) PromptConfig() (*Config, error) {
 		c.Region = region
 	}
 
-	bucket, err := utils.ReadPromptInput(fmt.Sprintf("Bucket [%s]: <enter alternate bucket or press enter>", fmt.Sprintf("jerm-%d", time.Now().Unix())), os.Stdin)
+	bucket, err := utils.ReadPromptInput(fmt.Sprintf("Bucket [%s]:", fmt.Sprintf("jerm-%d", time.Now().Unix())), os.Stdin)
 	if err != nil {
 		return nil, fmt.Errorf("unexpected error occured %s", err)
 	}
