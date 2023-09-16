@@ -19,13 +19,27 @@ import (
 	"github.com/spatocode/jerm/internal/utils"
 )
 
-type Python struct{}
-
-// NewPythonConfig creates a new Python config
-func NewPythonConfig() *Python {
-	return &Python{}
+type Python struct {
+	*Runtime
 }
 
+// NewPythonConfig instantiates a new Python runtime
+func NewPythonRuntime() RuntimeInterface {
+	runtime := &Runtime{}
+	p := &Python{runtime}
+	p.Name = RuntimePython
+	version, err := p.getVersion()
+	if err != nil {
+		log.Debug(fmt.Sprintf("encountered an error while getting python version. Default to %s", DefaultPythonVersion))
+		p.Version = DefaultPythonVersion
+		return p
+	}
+	p.Version = version
+	return p
+}
+
+// Entry is the directory where the cloud function handler resides.
+// The directory can be a file.
 func (p *Python) Entry() string {
 	switch {
 	case p.IsDjango():
@@ -40,8 +54,9 @@ func (p *Python) Entry() string {
 	}
 }
 
-// getVersion gets the python version
+// Gets the python version
 func (p *Python) getVersion() (string, error) {
+	log.Debug("getting python version...")
 	pythonVersion, err := utils.GetShellCommandOutput("python", "-V")
 	if err != nil || strings.Contains(pythonVersion, " 2.") {
 		pythonVersion, err = utils.GetShellCommandOutput("python3", "-V")
@@ -51,7 +66,7 @@ func (p *Python) getVersion() (string, error) {
 	return version, err
 }
 
-// getVirtualEnvironment gets the python active virtual environment
+// Gets the python active virtual environment
 func (p *Python) getVirtualEnvironment() (string, error) {
 	venv := os.Getenv("VIRTUAL_ENV")
 	if venv != "" {
@@ -77,7 +92,7 @@ func (p *Python) getVirtualEnvironment() (string, error) {
 	return "", nil
 }
 
-// Build builds the Python deployment package
+// Builds the Python deployment package
 func (p *Python) Build(config *Config) (string, error) {
 	tempDir, err := os.MkdirTemp(os.TempDir(), "jerm-python")
 	if err != nil {
@@ -92,8 +107,8 @@ func (p *Python) Build(config *Config) (string, error) {
 		return "", fmt.Errorf("cannot find a virtual env. Please ensure you're running in a virtual env")
 	}
 
-	version := strings.Split(DetectRuntime().Version, ".")
-	sitePackages := path.Join(venv, "lib", fmt.Sprintf("%s%s.%s", DetectRuntime().Name, version[0], version[1]), "site-packages")
+	version := strings.Split(p.Version, ".")
+	sitePackages := path.Join(venv, "lib", fmt.Sprintf("%s%s.%s", p.Name, version[0], version[1]), "site-packages")
 	if runtime.GOOS == "windows" {
 		sitePackages = path.Join(venv, "Lib", "site-packages")
 	}
@@ -125,6 +140,7 @@ func (p *Python) Build(config *Config) (string, error) {
 	return handlerPath, err
 }
 
+// Copies files from src to dest
 func (p *Python) copyNecessaryFilesToTempDir(src, dest string) error {
   log.Debug("copying necessary Python files...")
 
@@ -161,7 +177,7 @@ func (p *Python) copyNecessaryFilesToTempDir(src, dest string) error {
 // 	return nil
 // }
 
-// installNecessaryDependencies installs dependencies needed to run serverless Python
+// Installs dependencies needed to run serverless Python
 func (p *Python) installNecessaryDependencies(dir, sitePackages string, dependencies map[string]string) error {
 	log.Debug("installing necessary Python dependencies...")
 	var eg errgroup.Group
@@ -207,7 +223,7 @@ func (p *Python) installNecessaryDependencies(dir, sitePackages string, dependen
 	return err
 }
 
-// downloadDependencies downloads dependencies from pypi
+// Downloads dependencies from pypi
 func (p *Python) downloadDependencies(url, filename, dir string) error {
 	log.Debug("downloading dependencies...")
 	res, err := utils.Request(url)
@@ -241,6 +257,7 @@ func (p *Python) downloadDependencies(url, filename, dir string) error {
 	return nil
 }
 
+// Extracts python wheel from wheelPath to outputDir
 func (p *Python) extractWheel(wheelPath, outputDir string) error {
 	log.Debug("extracting python wheel...")
 	var eg errgroup.Group
@@ -284,11 +301,12 @@ func (p *Python) extractWheel(wheelPath, outputDir string) error {
 	return err
 }
 
+// Check if it's a Django project
 func (p *Python) IsDjango() bool {
 	return utils.FileExists("manage.py")
 }
 
-// gets the Django project path
+// Gets the Django project path
 func (p *Python) getDjangoProject(dir string) (string, error) {
 	// Not the best way for finding django project path
 	// Using this naive hack for now
@@ -316,4 +334,10 @@ func (p *Python) getDjangoProject(dir string) (string, error) {
 	}
 
 	return djangoPath, nil
+}
+
+// lambdaRuntime is the name of the python runtime as specified by AWS Lambda
+func (p *Python) lambdaRuntime() (string, error) {
+	v := strings.Split(p.Version, ".")
+	return fmt.Sprintf("%s%s.%s", p.Name, v[0], v[1]), nil
 }
