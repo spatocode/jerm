@@ -158,8 +158,8 @@ func (p *Python) installNecessaryDependencies(dir, sitePackages string, dependen
 	var eg errgroup.Group
 
 	for project, version := range dependencies {
-		func (dep, ver string) {
-			eg.Go(func () error {
+		func(dep, ver string) {
+			eg.Go(func() error {
 				url := fmt.Sprintf("https://pypi.org/pypi/%s/json", dep)
 				res, err := utils.Request(url)
 				if err != nil {
@@ -243,8 +243,8 @@ func (p *Python) extractWheel(wheelPath, outputDir string) error {
 	defer reader.Close()
 
 	for _, file := range reader.File {
-		func (file *zip.File) {
-			eg.Go(func () error {
+		func(file *zip.File) {
+			eg.Go(func() error {
 				os.MkdirAll(filepath.Join(outputDir, filepath.Dir(file.Name)), 0755)
 				if err != nil {
 					return err
