@@ -20,7 +20,7 @@ func NewGoRuntime() RuntimeInterface {
 	g.Name = RuntimeGo
 	version, err := g.getVersion()
 	if err != nil {
-		log.Debug("error encountered while getting go version.")
+		log.Debug(fmt.Sprintf("encountered an error while getting go version. Default to %s", DefaultGoVersion))
 		g.Version = DefaultGoVersion
 		return g
 	}

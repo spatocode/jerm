@@ -29,7 +29,7 @@ func NewPythonRuntime() RuntimeInterface {
 	p.Name = RuntimePython
 	version, err := p.getVersion()
 	if err != nil {
-		log.Debug("error encountered while getting python version.")
+		log.Debug(fmt.Sprintf("encountered an error while getting python version. Default to %s", DefaultPythonVersion))
 		p.Version = DefaultPythonVersion
 		return p
 	}
@@ -55,6 +55,7 @@ func (p *Python) Entry() string {
 
 // Gets the python version
 func (p *Python) getVersion() (string, error) {
+	log.Debug("getting python version...")
 	pythonVersion, err := utils.GetShellCommandOutput("python", "-V")
 	if err != nil || strings.Contains(pythonVersion, " 2.") {
 		pythonVersion, err = utils.GetShellCommandOutput("python3", "-V")

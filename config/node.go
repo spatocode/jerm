@@ -19,7 +19,7 @@ func NewNodeRuntime() RuntimeInterface {
 	n.Name = RuntimeNode
 	version, err := n.getVersion()
 	if err != nil {
-		log.Debug("error encountered while getting nodejs version.")
+		log.Debug(fmt.Sprintf("encountered an error while getting nodejs version. Default to %s", DefaultNodeVersion))
 		n.Version = DefaultNodeVersion
 		return n
 	}
