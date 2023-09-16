@@ -1,11 +1,8 @@
 package config
 
 const (
-	DefaultTimeout       = 30
-	DefaultMemory        = 512
-	DefaultNodeVersion   = "18."
-	DefaultPythonVersion = "3.9"
-	DefaultGoVersion     = "1.19"
+	DefaultTimeout = 30
+	DefaultMemory  = 512
 )
 
 // Lambda configuration.
@@ -29,7 +26,7 @@ func (l *Lambda) Defaults() error {
 	}
 
 	if l.Runtime == "" {
-		runtime := l.detectRuntime()
+		runtime := l.getRuntime()
 		l.Runtime, err = runtime.lambdaRuntime()
 		if err != nil {
 			return err
@@ -39,7 +36,7 @@ func (l *Lambda) Defaults() error {
 	return nil
 }
 
-func (l *Lambda) detectRuntime() *Runtime {
-	runtime := DetectRuntime()
+func (l *Lambda) getRuntime() RuntimeInterface {
+	runtime := NewRuntime()
 	return runtime
 }

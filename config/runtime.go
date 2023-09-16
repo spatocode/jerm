@@ -2,25 +2,18 @@ package config
 
 import (
 	"errors"
-	"fmt"
-	"strings"
 
-	"github.com/spatocode/jerm/internal/log"
 	"github.com/spatocode/jerm/internal/utils"
 )
 
-type Runtime struct {
-	Id      string
-	Name    string
-	Version string
-	Entry   string
-}
-
 const (
-	RuntimeUnknown = "unknown"
-	RuntimePython  = "python"
-	RuntimeGo      = "go"
-	RuntimeNode    = "node"
+	RuntimeUnknown       = "unknown"
+	RuntimePython        = "python"
+	RuntimeGo            = "go"
+	RuntimeNode          = "nodejs"
+	DefaultNodeVersion   = "18.13.0"
+	DefaultPythonVersion = "3.9.0"
+	DefaultGoVersion     = "1.19.0"
 )
 
 var (
@@ -42,45 +35,48 @@ var (
 	}
 )
 
-func DetectRuntime() *Runtime {
+type RuntimeInterface interface {
+	// Builds the deployment package for the underlying runtime
+	Build(*Config) (string, error)
+
+	// Entry is the directory where the cloud function handler resides.
+	// The directory can be a file.
+	Entry() string
+
+	// lambdaRuntime is the name of runtime as specified by AWS Lambda
+	lambdaRuntime() (string, error)
+}
+
+// Base Runtime
+type Runtime struct {
+	Name    string
+	Version string
+}
+
+// NewRuntime instantiates a new runtime
+func NewRuntime() RuntimeInterface {
 	r := &Runtime{}
 	switch {
 	case utils.FileExists("requirements.txt"):
-		r.python()
+		return NewPythonRuntime()
 	case utils.FileExists("main.go"):
-		r.golang()
+		return NewGoRuntime()
 	case utils.FileExists("package.json"):
-		r.node()
+		return NewNodeRuntime()
 	default:
 		r.Name = RuntimeUnknown
+		return r
 	}
-	return r
+}
+
+func (r *Runtime) Build(*Config) (string, error) {
+	return "", nil
+}
+
+func (r *Runtime) Entry() string {
+	return ""
 }
 
 func (r *Runtime) lambdaRuntime() (string, error) {
-	if r.Name == RuntimeUnknown {
-		return "", errors.New("cannot detect runtime. please specify runtime in your Jerm.json file")
-	}
-	v := strings.Split(r.Version, ".")
-	return fmt.Sprintf("%s%s.%s", r.Name, v[0], v[1]), nil
-}
-
-func (r *Runtime) python() {
-	r.Name = RuntimePython
-	p := NewPythonConfig()
-	version, err := p.getVersion()
-	if err != nil {
-		log.Debug("error encountered while getting python version.")
-		r.Version = DefaultPythonVersion
-		return
-	}
-	r.Version = version
-}
-
-func (r *Runtime) golang() {
-	r.Name = RuntimeGo
-}
-
-func (r *Runtime) node() {
-	r.Name = RuntimeNode
+	return "", errors.New("cannot detect runtime. please specify runtime in your Jerm.json file")
 }
