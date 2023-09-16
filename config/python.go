@@ -12,6 +12,8 @@ import (
 	"runtime"
 	"strings"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/otiai10/copy"
 	"github.com/spatocode/jerm/internal/log"
 	"github.com/spatocode/jerm/internal/utils"
@@ -86,8 +88,8 @@ func (p *Python) Build(config *Config) (string, error) {
 
 	venv, err := p.getVirtualEnvironment()
 	if err != nil {
-		err = p.installRequirements(tempDir)
-		return handlerPath, err
+		//TODO: installs requirements listed in requirements.txt file
+		return "", fmt.Errorf("cannot find a virtual env. Please ensure you're running in a virtual env")
 	}
 
 	version := strings.Split(DetectRuntime().Version, ".")
@@ -96,16 +98,37 @@ func (p *Python) Build(config *Config) (string, error) {
 		sitePackages = path.Join(venv, "Lib", "site-packages")
 	}
 
-	p.installNecessaryDependencies(tempDir, sitePackages)
-	p.copyNecessaryFilesToTempDir(config.Dir, tempDir)
-	p.copyNecessaryFilesToTempDir(sitePackages, tempDir)
-	log.Debug(fmt.Sprintf("build Python deployment package at %s", tempDir))
-	return handlerPath, nil
+	dependencies := map[string]string{
+		"lambda-wsgi-adapter": "0.1.1",
+	}
+	if !utils.FileExists(filepath.Join(sitePackages, "werkzeug")) {
+		dependencies["werkzeug"] = "0.16.1"
+	}
+
+	err = p.installNecessaryDependencies(tempDir, sitePackages, dependencies)
+	if err != nil {
+		return "", err
+	}
+
+	err = p.copyNecessaryFilesToTempDir(config.Dir, tempDir)
+	if err != nil {
+		return "", err
+	}
+
+	err = p.copyNecessaryFilesToTempDir(sitePackages, tempDir)
+	if err != nil {
+		return "", err
+	}
+
+	log.Debug(fmt.Sprintf("built Python deployment package at %s", tempDir))
+
+	return handlerPath, err
 }
 
 func (p *Python) copyNecessaryFilesToTempDir(src, dest string) error {
-	ignoredFiles := defaultIgnoredGlobs
+  log.Debug("copying necessary Python files...")
 
+  ignoredFiles := defaultIgnoredGlobs
 	files, err := ReadIgnoredFiles()
 	if err == nil {
 		ignoredFiles = append(ignoredFiles, files...)
@@ -134,49 +157,54 @@ func (p *Python) copyNecessaryFilesToTempDir(src, dest string) error {
 }
 
 // installRequirements installs requirements listed in requirements.txt file
-func (p *Python) installRequirements(dir string) error {
-	return nil
-}
+// func (p *Python) installRequirements(dir string) error {
+// 	return nil
+// }
 
 // installNecessaryDependencies installs dependencies needed to run serverless Python
-func (p *Python) installNecessaryDependencies(dir, sitePackages string) error {
+func (p *Python) installNecessaryDependencies(dir, sitePackages string, dependencies map[string]string) error {
 	log.Debug("installing necessary Python dependencies...")
-
-	dependencies := map[string]string{
-		"lambda-wsgi-adapter": "0.1.1",
-	}
-	if !utils.FileExists(filepath.Join(sitePackages, "werkzeug")) {
-		dependencies["werkzeug"] = "0.16.1"
-	}
+	var eg errgroup.Group
 
 	for project, version := range dependencies {
-		url := fmt.Sprintf("https://pypi.org/pypi/%s/json", project)
-		res, err := utils.Request(url)
-		if err != nil {
-			return err
-		}
-		defer res.Body.Close()
-		b, err := io.ReadAll(res.Body)
-		if err != nil {
-			return err
-		}
-		data := make(map[string]interface{})
-		err = json.Unmarshal(b, &data)
-		if err != nil {
-			return err
-		}
+		func(dep, ver string) {
+			eg.Go(func() error {
+				url := fmt.Sprintf("https://pypi.org/pypi/%s/json", dep)
+				res, err := utils.Request(url)
+				if err != nil {
+					return err
+				}
+				defer res.Body.Close()
+				b, err := io.ReadAll(res.Body)
+				if err != nil {
+					return err
+				}
+				data := make(map[string]interface{})
+				err = json.Unmarshal(b, &data)
+				if err != nil {
+					return err
+				}
 
-		r := data["releases"]
-		releases, _ := r.(map[string]interface{})
-		for _, v := range releases[version].([]interface{}) {
-			url := v.(map[string]interface{})["url"].(string)
-			filename := v.(map[string]interface{})["filename"].(string)
-			if filepath.Ext(filename) == ".whl" {
-				p.downloadDependencies(url, filename, dir)
-			}
-		}
+				r := data["releases"]
+				releases, _ := r.(map[string]interface{})
+				for _, v := range releases[ver].([]interface{}) {
+					url := v.(map[string]interface{})["url"].(string)
+					filename := v.(map[string]interface{})["filename"].(string)
+					if filepath.Ext(filename) == ".whl" {
+						err := p.downloadDependencies(url, filename, dir)
+						if err != nil {
+							return err
+						}
+					}
+				}
+				return nil
+			})
+		}(project, version)
 	}
-	return nil
+
+	err := eg.Wait()
+
+	return err
 }
 
 // downloadDependencies downloads dependencies from pypi
@@ -215,6 +243,8 @@ func (p *Python) downloadDependencies(url, filename, dir string) error {
 
 func (p *Python) extractWheel(wheelPath, outputDir string) error {
 	log.Debug("extracting python wheel...")
+	var eg errgroup.Group
+
 	reader, err := zip.OpenReader(wheelPath)
 	if err != nil {
 		return err
@@ -222,29 +252,36 @@ func (p *Python) extractWheel(wheelPath, outputDir string) error {
 	defer reader.Close()
 
 	for _, file := range reader.File {
-		os.MkdirAll(filepath.Join(outputDir, filepath.Dir(file.Name)), 0755)
-		if err != nil {
-			return err
-		}
+		func(file *zip.File) {
+			eg.Go(func() error {
+				os.MkdirAll(filepath.Join(outputDir, filepath.Dir(file.Name)), 0755)
+				if err != nil {
+					return err
+				}
 
-		extractedFile, err := os.Create(filepath.Join(outputDir, file.Name))
-		if err != nil {
-			return err
-		}
-		defer extractedFile.Close()
+				extractedFile, err := os.Create(filepath.Join(outputDir, file.Name))
+				if err != nil {
+					return err
+				}
+				defer extractedFile.Close()
 
-		zippedFile, err := file.Open()
-		if err != nil {
-			return err
-		}
-		defer zippedFile.Close()
+				zippedFile, err := file.Open()
+				if err != nil {
+					return err
+				}
+				defer zippedFile.Close()
 
-		if _, err = io.Copy(extractedFile, zippedFile); err != nil {
-			return err
-		}
+				if _, err = io.Copy(extractedFile, zippedFile); err != nil {
+					return err
+				}
+				return nil
+			})
+		}(file)
 	}
 
-	return nil
+	err = eg.Wait()
+
+	return err
 }
 
 func (p *Python) IsDjango() bool {
