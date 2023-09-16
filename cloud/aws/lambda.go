@@ -72,10 +72,12 @@ func NewLambda(cfg *config.Config) (*Lambda, error) {
 	l.access = NewIAM(cfg, *awsConfig)
 	l.apigateway = NewApiGateway(cfg, *awsConfig)
 
-	err = l.config.ToJson(jerm.DefaultConfigFile)
-	if err != nil {
-		return nil, err
-	}
+	go func() {
+		err := l.config.ToJson(jerm.DefaultConfigFile)
+		if err != nil {
+			log.PrintWarn(err)
+		}
+	}()
 
 	err = l.access.checkPermissions()
 	if err != nil {
@@ -88,10 +90,18 @@ func NewLambda(cfg *config.Config) (*Lambda, error) {
 // Build builds the deployment package for lambda
 func (l *Lambda) Build() (string, error) {
 	log.Debug("building Jerm project for Lambda...")
+
 	p := config.NewPythonConfig()
 	if l.config.Entry == "" {
 		l.config.Entry = p.Entry()
 	}
+
+	go func() {
+		err := l.config.ToJson(jerm.DefaultConfigFile)
+		if err != nil {
+			log.PrintWarn(err)
+		}
+	}()
 
 	handler, err := p.Build(l.config)
 	dir := filepath.Dir(handler)
@@ -274,7 +284,7 @@ func (l *Lambda) deleteLambdaFunction() {
 // Rollback rolls back a Lambda deployment to a number of previous versions `revision`
 func (l *Lambda) Rollback(steps int) error {
 	var revisions []int
-	response, err := l.listLambdaVersions()
+	versions, err := l.listLambdaVersions()
 	if err != nil {
 		var rnfErr *lambdaTypes.ResourceNotFoundException
 		if errors.As(err, &rnfErr) {
@@ -283,33 +293,38 @@ func (l *Lambda) Rollback(steps int) error {
 		}
 		return err
 	}
-	if len(response.Versions) > 1 && response.Versions[len(response.Versions)-1].PackageType == "Image" {
+	if len(versions) > 1 && versions[len(versions)-1].PackageType == "Image" {
 		msg := "rollback unavailable for Docker deployment. Aborting"
 		return errors.New(msg)
 	}
 
-	if len(response.Versions) < steps+1 {
+	if len(versions) <= steps+1 {
 		msg := "invalid revision for rollback. Aborting"
 		return errors.New(msg)
 	}
 
-	for _, revision := range response.Versions {
-		if *revision.Version != "$LATEST" {
-			version, _ := strconv.Atoi(*revision.Version)
-			revisions = append(revisions, version)
-		}
+	for _, revision := range versions {
+		version, _ := strconv.Atoi(*revision.Version)
+		revisions = append(revisions, version)
 	}
+
 	sort.Slice(revisions, func(i int, j int) bool {
 		return revisions[i] > revisions[j]
 	})
 
-	name := fmt.Sprintf("function%s:%v", l.config.Name, revisions[steps])
+	name := fmt.Sprintf("%s:%v", l.config.Name, revisions[steps])
 	function, err := l.getLambdaFunction(name)
 	if err != nil {
+		var rnfErr *lambdaTypes.ResourceNotFoundException
+		if errors.As(err, &rnfErr) {
+			msg := fmt.Sprintf("can't find a lambda function %s", name)
+			return errors.New(msg)
+		}
 		return err
 	}
 
 	location := function.Code.Location
+	log.Debug("fetching function code location...")
 	res, err := utils.Request(*location)
 	if err != nil {
 		return err
@@ -320,22 +335,27 @@ func (l *Lambda) Rollback(steps int) error {
 		return errors.New(msg)
 	}
 	defer res.Body.Close()
+
+	log.Debug("reading fetched data...")
 	b, err := io.ReadAll(res.Body)
 	if err != nil {
 		return err
 	}
 
 	l.updateLambdaFunction(b)
-	log.PrintInfo("Done!")
 	return nil
 }
 
-func (l *Lambda) listLambdaVersions() (*lambda.ListVersionsByFunctionOutput, error) {
+func (l *Lambda) listLambdaVersions() ([]lambdaTypes.FunctionConfiguration, error) {
+	log.Debug("list lambda versions by function...")
 	client := lambda.NewFromConfig(l.awsConfig)
 	response, err := client.ListVersionsByFunction(context.TODO(), &lambda.ListVersionsByFunctionInput{
 		FunctionName: aws.String(l.config.Name),
 	})
-	return response, err
+	if err != nil {
+		return nil, err
+	}
+	return response.Versions, err
 }
 
 // CreateFunctionEntry creates a Lambda function handler file
@@ -357,26 +377,16 @@ func (l *Lambda) CreateFunctionEntry(file string) error {
 }
 
 func (l *Lambda) isAlreadyDeployed() (bool, error) {
-	versions, err := l.getLambdaVersionsByFuction()
-	if err != nil {
-		return false, err
-	}
-	return len(versions) > 0, nil
-}
-
-func (l *Lambda) getLambdaVersionsByFuction() ([]lambdaTypes.FunctionConfiguration, error) {
-	client := lambda.NewFromConfig(l.awsConfig)
-	resp, err := client.ListVersionsByFunction(context.TODO(), &lambda.ListVersionsByFunctionInput{
-		FunctionName: aws.String(l.config.Name),
-	})
+	log.Debug("fetching function code location...")
+	versions, err := l.listLambdaVersions()
 	if err != nil {
 		var rnfErr *lambdaTypes.ResourceNotFoundException
 		if errors.As(err, &rnfErr) {
-			return nil, nil
+			return false, nil
 		}
-		return nil, err
+		return false, err
 	}
-	return resp.Versions, nil
+	return len(versions) > 0, nil
 }
 
 func (l *Lambda) createLambdaFunction(zipPath string) (*string, error) {
@@ -387,6 +397,7 @@ func (l *Lambda) createLambdaFunction(zipPath string) (*string, error) {
 	}
 	fileName := filepath.Base(zipPath)
 	client := lambda.NewFromConfig(l.awsConfig)
+	log.Debug("creating lambda function...")
 	resp, err := client.CreateFunction(context.TODO(), &lambda.CreateFunctionInput{
 		Code: &lambdaTypes.FunctionCode{
 			S3Bucket: aws.String(l.config.Bucket),
@@ -407,6 +418,7 @@ func (l *Lambda) createLambdaFunction(zipPath string) (*string, error) {
 }
 
 func (l *Lambda) getLambdaFunction(name string) (*lambda.GetFunctionOutput, error) {
+	log.Debug(fmt.Sprintf("getting lambda functon %s...", name))
 	client := lambda.NewFromConfig(l.awsConfig)
 	resp, err := client.GetFunction(context.TODO(), &lambda.GetFunctionInput{
 		FunctionName: aws.String(name),
@@ -418,6 +430,7 @@ func (l *Lambda) getLambdaFunction(name string) (*lambda.GetFunctionOutput, erro
 }
 
 func (l *Lambda) updateLambdaFunction(content []byte) (*string, error) {
+	log.Debug("updating lambda function code...")
 	client := lambda.NewFromConfig(l.awsConfig)
 	resp, err := client.UpdateFunctionCode(context.TODO(), &lambda.UpdateFunctionCodeInput{
 		FunctionName: aws.String(l.config.Name),

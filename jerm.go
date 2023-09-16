@@ -9,6 +9,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/spatocode/jerm/config"
 	"github.com/spatocode/jerm/internal/log"
@@ -53,13 +54,24 @@ func (p *Project) SetPlatform(cloud CloudPlatform) {
 
 // Deploy deploys the project to the cloud
 func (p *Project) Deploy() {
-	log.PrintInfo(fmt.Sprintf("Deploying project %s...", p.config.Name))
-	file, err := p.packageProject()
+	log.PrintfInfo("Deploying project %s...\n", p.config.Name)
+
+	start := time.Now()
+
+	deployInfo := func(size int64, start time.Time, buildDuration time.Duration) {
+		deployDuration := time.Since(start)
+		fmt.Printf("%s %s %v %s, (%s)\n", log.Magenta("build:"), log.Green("completed"), log.White(size/1000000), log.White("MB"), log.White(buildDuration.Round(time.Second)))
+		fmt.Printf("%s %s (%s)\n", log.Magenta("deploy:"), log.Green("completed"), log.White(deployDuration.Round(time.Second)))
+	}
+
+	file, size, err := p.packageProject()
 	if err != nil {
 		log.PrintError(err.Error())
 		return
 	}
 	defer os.RemoveAll(*file)
+
+	buildDuration := time.Since(start)
 
 	alreadyDeployed, err := p.cloud.Deploy(*file)
 	if err != nil {
@@ -68,16 +80,17 @@ func (p *Project) Deploy() {
 	}
 
 	if alreadyDeployed {
-		log.PrintInfo("Project already deployed. Updating...")
+		log.Debug("project already deployed. updating...")
 		err = p.Update(file)
 		if err != nil {
 			log.PrintError(err.Error())
 			return
 		}
+		deployInfo(size, start, buildDuration)
 		return
 	}
 
-	log.PrintInfo("Done!")
+	deployInfo(size, start, buildDuration)
 }
 
 // Update updates the deployed project
@@ -87,7 +100,7 @@ func (p *Project) Update(zipPath *string) error {
 	file := zipPath
 
 	if zipPath == nil {
-		file, err = p.packageProject()
+		file, _, err = p.packageProject()
 		if err != nil {
 			return err
 		}
@@ -99,49 +112,59 @@ func (p *Project) Update(zipPath *string) error {
 	}
 	defer os.RemoveAll(*file)
 
-	log.PrintInfo("Done!")
 	return nil
 }
 
 // Undeploy terminates a deployment
 func (p *Project) Undeploy() {
-	log.PrintInfo(fmt.Sprintf("Undeploying project %s...", p.config.Name))
+	log.PrintInfo("Undeploying project...")
+
+	start := time.Now()
 	err := p.cloud.Undeploy()
 	if err != nil {
 		log.PrintError(err.Error())
 		return
 	}
-	log.PrintInfo("Done!")
+
+	duration := time.Since(start)
+	fmt.Printf("%s %s (%s)\n", log.Magenta("undeploy:"), log.Green("completed"), log.White(duration.Round(time.Second)))
 }
 
 // Rollback rolls back a deployment to previous versions
 func (p *Project) Rollback(steps int) {
 	log.PrintInfo("Rolling back deployment...")
+
+	start := time.Now()
 	err := p.cloud.Rollback(steps)
 	if err != nil {
 		log.PrintError(err.Error())
 	}
+
+	duration := time.Since(start)
+	fmt.Printf("%s %s (%s)\n", log.Magenta("rollback:"), log.Green("completed"), log.White(duration.Round(time.Second)))
 }
 
 // packageProject packages a project for deployment
-func (p *Project) packageProject() (*string, error) {
+func (p *Project) packageProject() (*string, int64, error) {
 	log.Debug("packaging project...")
+
 	dir, err := p.cloud.Build()
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	archivePath := path.Join(p.config.Dir, ArchiveFile)
-	err = p.archivePackage(archivePath, dir)
-	return &archivePath, err
+	size, err := p.archivePackage(archivePath, dir)
+	return &archivePath, size, err
 }
 
 // archivePackage creates an archive file from a project
-func (p *Project) archivePackage(archivePath, dir string) error {
+func (p *Project) archivePackage(archivePath, dir string) (int64, error) {
 	log.Debug("archiving package...")
+
 	archive, err := os.Create(archivePath)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer archive.Close()
 
@@ -174,12 +197,15 @@ func (p *Project) archivePackage(archivePath, dir string) error {
 		}
 		return nil
 	}
+
 	err = filepath.WalkDir(dir, walker)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
-	return nil
+	info, err := archive.Stat()
+
+	return info.Size(), err
 }
 
 func Verbose(verbose bool) {
