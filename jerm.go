@@ -54,13 +54,13 @@ func (p *Project) SetPlatform(cloud CloudPlatform) {
 
 // Deploy deploys the project to the cloud
 func (p *Project) Deploy() {
-	log.PrintfInfo("Deploying project %s...", p.config.Name)
+	log.PrintfInfo("Deploying project %s...\n", p.config.Name)
 
 	start := time.Now()
 
 	deployInfo := func(size int64, start time.Time, buildDuration time.Duration) {
 		deployDuration := time.Since(start)
-		fmt.Printf("%s %s %v %s, (%s)\n", log.Magenta("build:"), log.Green("completed"), log.White(size/2048), log.Blue("MB"), log.White(buildDuration.Round(time.Second)))
+		fmt.Printf("%s %s %v %s, (%s)\n", log.Magenta("build:"), log.Green("completed"), log.White(size/1000000), log.White("MB"), log.White(buildDuration.Round(time.Second)))
 		fmt.Printf("%s %s (%s)\n", log.Magenta("deploy:"), log.Green("completed"), log.White(deployDuration.Round(time.Second)))
 	}
 
