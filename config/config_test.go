@@ -34,3 +34,21 @@ func TestConfigDefaults(t *testing.T) {
 	assert.Contains(cfg.Dir, workDir)
 	assert.NotNil(cfg.Region)
 }
+
+func TestReadConfig(t *testing.T) {
+	assert := assert.New(t)
+	c, err := ReadConfig("../test/data/jerm.json")
+	role := "arn:aws:iam::269360183919:role/bodystats-dev-JermTestLambdaServiceExecutionRole"
+	assert.Nil(err)
+	assert.Equal("bodystats", c.Name)
+	assert.Equal("dev", c.Stage)
+	assert.Equal("jerm-1699348021", c.Bucket)
+	assert.Equal("us-west-2", c.Region)
+	assert.Equal("python3.11", c.Lambda.Runtime)
+	assert.Equal(30, c.Lambda.Timeout)
+	assert.Equal(role, c.Lambda.Role)
+	assert.Equal(512, c.Lambda.Memory)
+	assert.Equal(false, c.Lambda.KeepWarm)
+	assert.Equal("/home/ubuntu/bodystats", c.Dir)
+	assert.Equal("bodyie", c.Entry)
+}
