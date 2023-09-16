@@ -25,7 +25,8 @@ type Python struct {
 
 // NewPythonConfig instantiates a new Python runtime
 func NewPythonRuntime() RuntimeInterface {
-	p := &Python{}
+	runtime := &Runtime{}
+	p := &Python{runtime}
 	p.Name = RuntimePython
 	version, err := p.getVersion()
 	if err != nil {

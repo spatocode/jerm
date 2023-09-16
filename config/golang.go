@@ -16,7 +16,8 @@ type Go struct {
 
 // NewGoConfig instantiates a new Go runtime
 func NewGoRuntime() RuntimeInterface {
-	g := &Go{}
+	runtime := &Runtime{}
+	g := &Go{runtime}
 	g.Name = RuntimeGo
 	version, err := g.getVersion()
 	if err != nil {
