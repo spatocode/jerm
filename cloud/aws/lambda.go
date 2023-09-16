@@ -91,9 +91,9 @@ func NewLambda(cfg *config.Config) (*Lambda, error) {
 func (l *Lambda) Build() (string, error) {
 	log.Debug("building Jerm project for Lambda...")
 
-	p := config.NewPythonConfig()
+	r := config.NewRuntime()
 	if l.config.Entry == "" {
-		l.config.Entry = p.Entry()
+		l.config.Entry = r.Entry()
 	}
 
 	go func() {
@@ -103,7 +103,7 @@ func (l *Lambda) Build() (string, error) {
 		}
 	}()
 
-	handler, err := p.Build(l.config)
+	handler, err := r.Build(l.config)
 	dir := filepath.Dir(handler)
 	if err != nil {
 		return "", err
