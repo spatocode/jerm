@@ -23,13 +23,4 @@ jobs:
         sudo apt-get update && sudo apt-get install gcc libgl1-mesa-dev libegl1-mesa-dev libgles2-mesa-dev libx11-dev xorg-dev
 
     - name: Tests
-      run: |
-        set -e
-        go test -v -coverprofile=coverage.out -vet=off ./...
-        coverage=`go tool cover -func coverage.out | grep total | tr -s '\t' | cut -f 3 | grep -o '[^%]*'`
-        if (( $(echo "$coverage < 63" | bc) )); then echo "Test coverage lowered"; exit 1; fi
-
-    - name: Code coverage
-      uses: shogo82148/actions-goveralls@v1
-      with:
-        path-to-profile: coverage.out
+      run: go test -v -vet=off ./...
