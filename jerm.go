@@ -147,6 +147,7 @@ func (p *Project) Rollback(steps int) {
 // packageProject packages a project for deployment
 func (p *Project) packageProject() (*string, int64, error) {
 	log.Debug("packaging project...")
+
 	dir, err := p.cloud.Build()
 	if err != nil {
 		return nil, 0, err
@@ -160,6 +161,7 @@ func (p *Project) packageProject() (*string, int64, error) {
 // archivePackage creates an archive file from a project
 func (p *Project) archivePackage(archivePath, dir string) (int64, error) {
 	log.Debug("archiving package...")
+
 	archive, err := os.Create(archivePath)
 	if err != nil {
 		return 0, err
@@ -195,6 +197,7 @@ func (p *Project) archivePackage(archivePath, dir string) (int64, error) {
 		}
 		return nil
 	}
+
 	err = filepath.WalkDir(dir, walker)
 	if err != nil {
 		return 0, err
