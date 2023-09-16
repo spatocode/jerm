@@ -6,6 +6,7 @@ package cmd
 import (
 	"os"
 
+	"github.com/spatocode/jerm"
 	"github.com/spf13/cobra"
 )
 
@@ -14,7 +15,7 @@ var rootCmd = &cobra.Command{
 	Use:     "jerm",
 	Short:   "Deploy serverless applications to the cloud",
 	Long:    `Deploy serverless applications to the cloud`,
-	Version: "0.0.2",
+	Version: jerm.Version,
 	CompletionOptions: cobra.CompletionOptions{
 		HiddenDefaultCmd: true,
 	},

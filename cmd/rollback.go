@@ -17,9 +17,11 @@ import (
 // rollbackCmd represents the rollback command
 var rollbackCmd = &cobra.Command{
 	Use:   "rollback",
-	Short: "Rolls back to the previous revision of the deployment",
-	Long:  "Rolls back to the previous revision of the deployment",
+	Short: "Rolls back to the previous versions of the deployment",
+	Long:  "Rolls back to the previous versions of the deployment",
 	Run: func(cmd *cobra.Command, args []string) {
+		steps, _ := cmd.Flags().GetInt("steps")
+
 		config, err := jerm.ReadConfig(jerm.DefaultConfigFile)
 		if err != nil {
 			var pErr *os.PathError
@@ -40,13 +42,14 @@ var rollbackCmd = &cobra.Command{
 			return
 		}
 		p.SetPlatform(platform)
-		p.Rollback()
+		p.Rollback(steps)
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(rollbackCmd)
 
+	rollbackCmd.Flags().IntP("steps", "s", 1, "Number of previous versions")
 	// Here you will define your flags and configuration settings.
 
 	// Cobra supports Persistent Flags which will work for this command
