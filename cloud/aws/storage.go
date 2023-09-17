@@ -63,7 +63,7 @@ func (s *S3) Upload(filePath string) error {
 	defer file.Close()
 
 	fileName := filepath.Base(filePath)
-	log.Debug(fmt.Sprintf("uploading file %s...\n", fileName))
+	log.Debug(fmt.Sprintf("uploading file %s...", fileName))
 	_, err = client.PutObject(context.TODO(), &s3.PutObjectInput{
 		Bucket: aws.String(s.config.Bucket),
 		Key:    aws.String(fileName),
