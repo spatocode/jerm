@@ -142,9 +142,9 @@ func (p *Python) Build(config *Config) (string, error) {
 
 // Copies files from src to dest
 func (p *Python) copyNecessaryFilesToTempDir(src, dest string) error {
-  log.Debug("copying necessary Python files...")
+	log.Debug("copying necessary Python files...")
 
-  ignoredFiles := defaultIgnoredGlobs
+	ignoredFiles := defaultIgnoredGlobs
 	files, err := ReadIgnoredFiles()
 	if err == nil {
 		ignoredFiles = append(ignoredFiles, files...)
