@@ -21,8 +21,7 @@ var rollbackCmd = &cobra.Command{
 	Long:  "Rolls back to the previous versions of the deployment",
 	Run: func(cmd *cobra.Command, args []string) {
 		steps, _ := cmd.Flags().GetInt("steps")
-		verbose, _ := cmd.Flags().GetBool("verbose")
-		jerm.Verbose(verbose)
+		jerm.Verbose(cmd)
 
 		config, err := jerm.ReadConfig(jerm.DefaultConfigFile)
 		if err != nil {

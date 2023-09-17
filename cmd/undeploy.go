@@ -21,8 +21,7 @@ var undeployCmd = &cobra.Command{
 	Short: "Undeploy a deployed application",
 	Long:  "Undeploy a deployed application",
 	Run: func(cmd *cobra.Command, args []string) {
-		verbose, _ := cmd.Flags().GetBool("verbose")
-		jerm.Verbose(verbose)
+		jerm.Verbose(cmd)
 
 		config, err := jerm.ReadConfig(jerm.DefaultConfigFile)
 		if err != nil {

@@ -19,8 +19,7 @@ var deployCmd = &cobra.Command{
 	Short: "Deploy an application",
 	Long:  "Deploy an application",
 	Run: func(cmd *cobra.Command, args []string) {
-		verbose, _ := cmd.Flags().GetBool("verbose")
-		jerm.Verbose(verbose)
+		jerm.Verbose(cmd)
 
 		config, err := jerm.ReadConfig(jerm.DefaultConfigFile)
 		if err != nil {
