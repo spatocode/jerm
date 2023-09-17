@@ -96,6 +96,25 @@ func TestOutputWithAttr(t *testing.T) {
 	assert.Equal(expected, actual)
 }
 
+func TestOutputWithGroup(t *testing.T) {
+	assert := assert.New(t)
+	var buf bytes.Buffer
+
+	h := New(&buf, nil)
+	logger := slog.New(logtimeHandler{testTime, h})
+	attr := []slog.Attr{
+		slog.String("t", "test"),
+		slog.Group("g", slog.Int("a", 1), slog.Int("b", 2)),
+		slog.Bool("b", true),
+	}
+	logger.LogAttrs(context.Background(), slog.LevelInfo, "testing jerm custom slog handler", attr...)
+
+	actual := buf.String()
+	actual = actual[:len(actual)-1]
+	expected := "2023-09-17T06:44:13Z INFO testing jerm custom slog handler t=test g.a=1 g.b=2 b=true"
+	assert.Equal(expected, actual)
+}
+
 type logtimeHandler struct {
 	t time.Time
 	h slog.Handler
