@@ -229,7 +229,7 @@ func (l *Lambda) waitTillFunctionBecomesUpdated() {
 }
 
 func (l *Lambda) scheduleEvents() {
-	
+
 }
 
 func (l *Lambda) Update(zipPath string) error {
