@@ -20,6 +20,8 @@ var statusCmd = &cobra.Command{
 	Short: "Show deployment logs",
 	Long:  "Show deployment logs",
 	Run: func(cmd *cobra.Command, args []string) {
+		jerm.Verbose(cmd)
+
 		config, err := jerm.ReadConfig(jerm.DefaultConfigFile)
 		if err != nil {
 			var pErr *os.PathError

@@ -13,6 +13,7 @@ import (
 
 	"github.com/spatocode/jerm/config"
 	"github.com/spatocode/jerm/internal/log"
+	"github.com/spf13/cobra"
 )
 
 // Config is the Jerm configuration
@@ -214,4 +215,13 @@ func (p *Project) archivePackage(archivePath, dir string) (int64, error) {
 	info, err := archive.Stat()
 
 	return info.Size(), err
+}
+
+func Verbose(cmd *cobra.Command) {
+	verbose, _ := cmd.Flags().GetBool("verbose")
+	if verbose {
+		os.Setenv("JERM_VERBOSE", "1")
+	} else {
+		os.Setenv("JERM_VERBOSE", "0")
+	}
 }
