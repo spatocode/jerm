@@ -35,8 +35,9 @@ var manageCmd = &cobra.Command{
 			}
 		}
 
-		isDjango := config.NewPythonConfig().IsDjango()
-		if !strings.Contains(cfg.Lambda.Runtime, "python") || !isDjango {
+		runtime := config.NewPythonRuntime()
+		python := runtime.(*config.Python)
+		if !strings.HasPrefix(cfg.Lambda.Runtime, "python") || !python.IsDjango() {
 			log.PrintError("manage command is for Django projects only")
 			return
 		}
