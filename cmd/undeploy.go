@@ -21,6 +21,8 @@ var undeployCmd = &cobra.Command{
 	Short: "Undeploy a deployed application",
 	Long:  "Undeploy a deployed application",
 	Run: func(cmd *cobra.Command, args []string) {
+		jerm.Verbose(cmd)
+
 		config, err := jerm.ReadConfig(jerm.DefaultConfigFile)
 		if err != nil {
 			var pErr *os.PathError
