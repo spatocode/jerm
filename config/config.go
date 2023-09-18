@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -13,23 +14,25 @@ import (
 )
 
 const (
-	Dev           Stage = "dev"
-	Production    Stage = "production"
-	Staging       Stage = "staging"
-	DefaultRegion       = "us-west-2"
+	Dev            Stage = "dev"
+	Production     Stage = "production"
+	Staging        Stage = "staging"
+	DefaultRegion        = "us-west-2"
+	jermIgnoreFile       = ".jermignore"
 )
 
 type Stage string
 
 // Config is the Jerm configuration details
 type Config struct {
-	Name   string  `json:"name"`
-	Stage  string  `json:"stage"`
-	Bucket string  `json:"bucket"`
-	Region string  `json:"region"`
-	Lambda *Lambda `json:"lambda"`
-	Dir    string  `json:"dir"`
-	Entry  string  `json:"entry"`
+	Name   string   `json:"name"`
+	Stage  string   `json:"stage"`
+	Bucket string   `json:"bucket"`
+	Region string   `json:"region"`
+	Lambda *Lambda  `json:"lambda"`
+	Ignore []string `json:"ignore"`
+	Dir    string   `json:"dir"`
+	Entry  string   `json:"entry"`
 }
 
 // Defaults extracts the default configuration
@@ -99,6 +102,27 @@ func (c *Config) init() error {
 	}
 
 	return nil
+}
+
+func ReadIgnoredFiles(file string) ([]string, error) {
+	f, err := os.Open(file)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	fileScanner := bufio.NewScanner(f)
+	fileScanner.Split(bufio.ScanLines)
+	var fileLines []string
+
+	for fileScanner.Scan() {
+		if strings.TrimSpace(fileScanner.Text()) == "" {
+			continue
+		}
+		fileLines = append(fileLines, strings.TrimSpace(fileScanner.Text()))
+	}
+
+	return fileLines, nil
 }
 
 // ReadConfig reads a configuration file
