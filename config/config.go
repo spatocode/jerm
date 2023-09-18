@@ -5,7 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -107,6 +109,7 @@ func (c *Config) defaults() error {
 func (c *Config) PromptConfig() (*Config, error) {
 	c.defaults()
 
+	var bucket string
 	name, err := utils.ReadPromptInput(fmt.Sprintf("Project name [%s]:", c.Name), os.Stdin)
 	if err != nil {
 		return nil, fmt.Errorf("unexpected error occured %s", err)
@@ -120,7 +123,6 @@ func (c *Config) PromptConfig() (*Config, error) {
 		return nil, fmt.Errorf("unexpected error occured %s", err)
 	}
 	if stage != "" {
-		// TODO: Check is correct name
 		c.Stage = stage
 	}
 
@@ -132,17 +134,37 @@ func (c *Config) PromptConfig() (*Config, error) {
 		c.Region = region
 	}
 
-	bucket, err := utils.ReadPromptInput(fmt.Sprintf("Bucket [%s]:", fmt.Sprintf("jerm-%d", time.Now().Unix())), os.Stdin)
-	if err != nil {
-		return nil, fmt.Errorf("unexpected error occured %s", err)
+	for {
+		bucket, err := utils.ReadPromptInput(fmt.Sprintf("Bucket [%s]:", fmt.Sprintf("jerm-%d", time.Now().Unix())), os.Stdin)
+		if err != nil {
+			return nil, fmt.Errorf("unexpected error occured %s", err)
+		}
+		if bucket == "" || c.isValidAwsS3BucketName(bucket) {
+			break
+		}
+		log.PrintWarn("Invalid bucket naming. Enter a valid bucket name.")
+		log.PrintWarn("See here:", "https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html")
 	}
 	if bucket != "" {
-		// TODO: Enforce bucket naming restrictions
-		// https://docs.aws.amazon.com/AmazonS3/latest/dev/BucketRestrictions.html#bucketnamingrules
 		c.Bucket = strings.TrimSpace(bucket)
 	}
 
 	return c, nil
+}
+
+func (c *Config) isValidAwsS3BucketName(name string) bool {
+	_, err := strconv.Atoi(string(name[0]))
+	if err != nil {
+		return false
+	}
+	return len(name) < 3 || len(name) > 63 ||
+		strings.Contains(name, "_") || strings.Contains(name, "..") ||
+		strings.HasPrefix(name, "xn--") ||
+		strings.HasPrefix(name, "sthree") ||
+		strings.HasPrefix(name, "sthree-configurator") ||
+		strings.HasSuffix(name, "-s3alias") ||
+		strings.HasSuffix(name, "--ol-s3") ||
+		net.ParseIP(name) != nil
 }
 
 func ReadIgnoredFiles(file string) ([]string, error) {

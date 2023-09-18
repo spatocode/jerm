@@ -53,6 +53,7 @@ func ReadPromptInput(prompt string, input io.Reader) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	value = strings.ToLower(value)
 	return strings.TrimSpace(value), nil
 }
 
