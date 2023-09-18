@@ -125,12 +125,12 @@ func (p *Python) Build(config *Config) (string, error) {
 		return "", err
 	}
 
-	err = p.copyNecessaryFilesToTempDir(config.Dir, tempDir)
+	err = p.copyNecessaryFilesToTempDir(config.Dir, tempDir, jermIgnoreFile)
 	if err != nil {
 		return "", err
 	}
 
-	err = p.copyNecessaryFilesToTempDir(sitePackages, tempDir)
+	err = p.copyNecessaryFilesToTempDir(sitePackages, tempDir, jermIgnoreFile)
 	if err != nil {
 		return "", err
 	}
@@ -141,11 +141,11 @@ func (p *Python) Build(config *Config) (string, error) {
 }
 
 // Copies files from src to dest
-func (p *Python) copyNecessaryFilesToTempDir(src, dest string) error {
+func (p *Python) copyNecessaryFilesToTempDir(src, dest, ignoreFile string) error {
 	log.Debug("copying necessary Python files...")
 
 	ignoredFiles := defaultIgnoredGlobs
-	files, err := ReadIgnoredFiles(jermIgnoreFile)
+	files, err := ReadIgnoredFiles(ignoreFile)
 	if err == nil {
 		ignoredFiles = append(ignoredFiles, files...)
 	}
