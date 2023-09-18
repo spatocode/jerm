@@ -12,7 +12,7 @@ func TestReadConfigAlwaysReturnsConfig(t *testing.T) {
 	assert.NotNil(cfg)
 }
 
-func TestIgnoredFiles(t *testing.T)  {
+func TestIgnoredFiles(t *testing.T) {
 	assert := assert.New(t)
 	files, err := ReadIgnoredFiles("../assets/tests/.jermignore")
 	expected := []string{"firstfile", "secondfile"}
