@@ -78,7 +78,7 @@ func (c *Config) ToJson(name string) error {
 	return nil
 }
 
-// init initialize a configuration with it's default
+// defaults to default configuration
 func (c *Config) defaults() error {
 	workDir, err := os.Getwd()
 	if err != nil {
