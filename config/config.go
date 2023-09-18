@@ -104,8 +104,8 @@ func (c *Config) init() error {
 	return nil
 }
 
-func ReadIgnoredFiles() ([]string, error) {
-	f, err := os.Open(jermIgnoreFile)
+func ReadIgnoredFiles(file string) ([]string, error) {
+	f, err := os.Open(file)
 	if err != nil {
 		return nil, err
 	}

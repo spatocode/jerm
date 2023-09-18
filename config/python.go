@@ -145,7 +145,7 @@ func (p *Python) copyNecessaryFilesToTempDir(src, dest string) error {
 	log.Debug("copying necessary Python files...")
 
 	ignoredFiles := defaultIgnoredGlobs
-	files, err := ReadIgnoredFiles()
+	files, err := ReadIgnoredFiles(jermIgnoreFile)
 	if err == nil {
 		ignoredFiles = append(ignoredFiles, files...)
 	}
