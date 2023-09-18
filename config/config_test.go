@@ -31,7 +31,7 @@ func TestConfigDefaults(t *testing.T) {
 
 func TestReadConfig(t *testing.T) {
 	assert := assert.New(t)
-	c, err := ReadConfig("../test/testdata/jerm.json")
+	c, err := ReadConfig("../assets/tests/jerm.json")
 	role := "arn:aws:iam::269360183919:role/bodystats-dev-JermTestLambdaServiceExecutionRole"
 	assert.Nil(err)
 	assert.Equal("bodystats", c.Name)
