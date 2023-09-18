@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -14,11 +15,12 @@ import (
 )
 
 const (
-	Dev           Stage = "dev"
-	Production    Stage = "production"
-	Staging       Stage = "staging"
-	DefaultRegion       = "us-west-2"
-	DefaultStage  Stage = Dev
+	Dev            Stage = "dev"
+	Production     Stage = "production"
+	Staging        Stage = "staging"
+	DefaultRegion        = "us-west-2"
+	DefaultStage   Stage = Dev
+	jermIgnoreFile       = ".jermignore"
 )
 
 type Stage string
@@ -141,6 +143,27 @@ func (c *Config) PromptConfig() (*Config, error) {
 	}
 
 	return c, nil
+}
+
+func ReadIgnoredFiles(file string) ([]string, error) {
+	f, err := os.Open(file)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	fileScanner := bufio.NewScanner(f)
+	fileScanner.Split(bufio.ScanLines)
+	var fileLines []string
+
+	for fileScanner.Scan() {
+		if strings.TrimSpace(fileScanner.Text()) == "" {
+			continue
+		}
+		fileLines = append(fileLines, strings.TrimSpace(fileScanner.Text()))
+	}
+
+	return fileLines, nil
 }
 
 // ReadConfig reads a configuration file
