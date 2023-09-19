@@ -155,9 +155,9 @@ func (c *Config) PromptConfig() (*Config, error) {
 func (c *Config) isValidAwsS3BucketName(name string) bool {
 	pattern := "^[a-z0-9.-]+$"
 	regex, err := regexp.Compile(pattern)
-    if err != nil {
-        return false
-    }
+	if err != nil {
+		return false
+	}
 
 	return (len(name) >= 3 && len(name) <= 63) && regex.MatchString(name) &&
 		!strings.Contains(name, "..") &&
