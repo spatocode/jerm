@@ -5,12 +5,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/spatocode/jerm/internal/log"
+	"github.com/spatocode/jerm/internal/utils"
 )
 
 const (
@@ -18,6 +21,7 @@ const (
 	Production     Stage = "production"
 	Staging        Stage = "staging"
 	DefaultRegion        = "us-west-2"
+	DefaultStage   Stage = Dev
 	jermIgnoreFile       = ".jermignore"
 )
 
@@ -25,27 +29,21 @@ type Stage string
 
 // Config is the Jerm configuration details
 type Config struct {
-	Name   string   `json:"name"`
-	Stage  string   `json:"stage"`
-	Bucket string   `json:"bucket"`
-	Region string   `json:"region"`
-	Lambda *Lambda  `json:"lambda"`
-	Ignore []string `json:"ignore"`
-	Dir    string   `json:"dir"`
-	Entry  string   `json:"entry"`
+	Name   string  `json:"name"`
+	Stage  string  `json:"stage"`
+	Bucket string  `json:"bucket"`
+	Region string  `json:"region"`
+	Lambda *Lambda `json:"lambda"`
+	Dir    string  `json:"dir"`
+	Entry  string  `json:"entry"`
 }
 
-// Defaults extracts the default configuration
-func (c *Config) Defaults() error {
-	if err := c.detectRegion(); err != nil {
-		return err
-	}
-
-	return nil
+func (c *Config) GetFunctionName() string {
+	return fmt.Sprintf("%s-%s", c.Name, c.Stage)
 }
 
-// detectRegion detects an AWS region from the AWS credentials
-func (c *Config) detectRegion() error {
+// extractRegion detects an AWS region from the AWS credentials
+func (c *Config) extractRegion() error {
 	ctx := context.TODO()
 	cfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
@@ -82,26 +80,93 @@ func (c *Config) ToJson(name string) error {
 	return nil
 }
 
-// init initialize a configuration with it's default
-func (c *Config) init() error {
+// defaults to default configuration
+func (c *Config) defaults() error {
 	workDir, err := os.Getwd()
 	if err != nil {
 		log.Debug(err.Error())
 		return err
 	}
-	splitPath := strings.Split(workDir, "/")
-	projectName := splitPath[len(splitPath)-1]
 
-	c.Stage = string(Dev)
+	workspace, err := utils.GetWorkspaceName()
+	if err != nil {
+		log.Debug(err.Error())
+		return err
+	}
+
+	c.Stage = string(DefaultStage)
 	c.Bucket = fmt.Sprintf("jerm-%d", time.Now().Unix())
-	c.Name = fmt.Sprintf("%s-%s", projectName, string(Dev))
+	c.Name = workspace
 	c.Dir = workDir
 
-	if err := c.Defaults(); err != nil {
-		log.PrintWarn(err.Error())
+	if err = c.extractRegion(); err != nil {
+		return err
 	}
 
 	return nil
+}
+
+func (c *Config) PromptConfig() (*Config, error) {
+	c.defaults()
+
+	var bucket string
+	name, err := utils.ReadPromptInput(fmt.Sprintf("Project name [%s]:", c.Name), os.Stdin)
+	if err != nil {
+		return nil, fmt.Errorf("unexpected error occured %s", err)
+	}
+	if name != "" {
+		c.Name = name
+	}
+
+	stage, err := utils.ReadPromptInput(fmt.Sprintf("Deployment stage [%s]:", DefaultStage), os.Stdin)
+	if err != nil {
+		return nil, fmt.Errorf("unexpected error occured %s", err)
+	}
+	if stage != "" {
+		c.Stage = stage
+	}
+
+	region, err := utils.ReadPromptInput(fmt.Sprintf("Region [%s]:", c.Region), os.Stdin)
+	if err != nil {
+		return nil, fmt.Errorf("unexpected error occured %s", err)
+	}
+	if region != "" {
+		c.Region = region
+	}
+
+	for {
+		bucket, err := utils.ReadPromptInput(fmt.Sprintf("Bucket [%s]:", fmt.Sprintf("jerm-%d", time.Now().Unix())), os.Stdin)
+		if err != nil {
+			return nil, fmt.Errorf("unexpected error occured %s", err)
+		}
+		if bucket == "" || c.isValidAwsS3BucketName(bucket) {
+			break
+		}
+		log.PrintWarn("Invalid bucket naming. Enter a valid bucket name.")
+		log.PrintWarn("See here:", "https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html")
+	}
+	if bucket != "" {
+		c.Bucket = strings.ToLower(bucket)
+	}
+
+	return c, nil
+}
+
+func (c *Config) isValidAwsS3BucketName(name string) bool {
+	pattern := "^[a-z0-9.-]+$"
+	regex, err := regexp.Compile(pattern)
+	if err != nil {
+		return false
+	}
+
+	return (len(name) >= 3 && len(name) <= 63) && regex.MatchString(name) &&
+		!strings.Contains(name, "..") &&
+		!strings.HasPrefix(name, "xn--") &&
+		!strings.HasPrefix(name, "sthree") &&
+		!strings.HasPrefix(name, "sthree-configurator") &&
+		!strings.HasSuffix(name, "-s3alias") &&
+		!strings.HasSuffix(name, "--ol-s3") &&
+		net.ParseIP(name) == nil
 }
 
 func ReadIgnoredFiles(file string) ([]string, error) {
@@ -129,13 +194,7 @@ func ReadIgnoredFiles(file string) ([]string, error) {
 func ReadConfig(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		cfg := &Config{}
-		err := cfg.init()
-		if err != nil {
-			return nil, err
-		}
-
-		return cfg, nil
+		return nil, err
 	}
 	return ParseConfig(data)
 }
