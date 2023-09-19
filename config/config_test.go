@@ -54,3 +54,70 @@ func TestIgnoredFiles(t *testing.T) {
 	assert.Nil(err)
 	assert.Equal(expected, files)
 }
+
+func TestAwsS3BucketCorrectNaming(t *testing.T) {
+	assert := assert.New(t)
+	cfg := &Config{}
+	assert.True(cfg.isValidAwsS3BucketName("1test1."))
+}
+
+func TestAwsS3BucketNoSpecialCharactersAsidesDotsAndHyphen(t *testing.T) {
+	assert := assert.New(t)
+	cfg := &Config{}
+	assert.False(cfg.isValidAwsS3BucketName("tes/t"))
+}
+
+func TestAwsS3BucketNoSthreehyphenconfiguratorPrefix(t *testing.T) {
+	assert := assert.New(t)
+	cfg := &Config{}
+	assert.False(cfg.isValidAwsS3BucketName("sthree-configuratortest"))
+}
+
+func TestAwsS3BucketNameNoAdjacentDots(t *testing.T) {
+	assert := assert.New(t)
+	cfg := &Config{}
+	assert.False(cfg.isValidAwsS3BucketName("te..st"))
+}
+
+func TestAwsS3BucketNameNoLessThan3Characters(t *testing.T) {
+	assert := assert.New(t)
+	cfg := &Config{}
+	assert.False(cfg.isValidAwsS3BucketName("te"))
+}
+
+func TestAwsS3BucketNameNoMoreThan63Characters(t *testing.T) {
+	assert := assert.New(t)
+	cfg := &Config{}
+	n := "wdteeumuimumnbvrewqsdfvtyuioopplnhgxtygbwhjsgfdfghhgfcxdsdfvbgfv"
+	assert.False(cfg.isValidAwsS3BucketName(n))
+}
+
+func TestAwsS3BucketNameNoxnDoubleHyphenPrefix(t *testing.T) {
+	assert := assert.New(t)
+	cfg := &Config{}
+	assert.False(cfg.isValidAwsS3BucketName("xn--test"))
+}
+
+func TestAwsS3BucketNameNoHyphens3aliasSuffix(t *testing.T) {
+	assert := assert.New(t)
+	cfg := &Config{}
+	assert.False(cfg.isValidAwsS3BucketName("test-s3alias"))
+}
+
+func TestAwsS3BucketNameNoDoubleHyphenOlDashS3Suffix(t *testing.T) {
+	assert := assert.New(t)
+	cfg := &Config{}
+	assert.False(cfg.isValidAwsS3BucketName("test--ol-s3"))
+}
+
+func TestAwsS3BucketNameNosthreePrefix(t *testing.T) {
+	assert := assert.New(t)
+	cfg := &Config{}
+	assert.False(cfg.isValidAwsS3BucketName("sthreetest"))
+}
+
+func TestAwsS3BucketNameNoIpAddress(t *testing.T) {
+	assert := assert.New(t)
+	cfg := &Config{}
+	assert.False(cfg.isValidAwsS3BucketName("10.199.29.17"))
+}

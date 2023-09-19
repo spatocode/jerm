@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"strconv"
+	"regexp"
 	"strings"
 	"time"
 
@@ -146,25 +146,27 @@ func (c *Config) PromptConfig() (*Config, error) {
 		log.PrintWarn("See here:", "https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html")
 	}
 	if bucket != "" {
-		c.Bucket = strings.TrimSpace(bucket)
+		c.Bucket = strings.ToLower(bucket)
 	}
 
 	return c, nil
 }
 
 func (c *Config) isValidAwsS3BucketName(name string) bool {
-	_, err := strconv.Atoi(string(name[0]))
-	if err != nil {
-		return false
-	}
-	return len(name) < 3 || len(name) > 63 ||
-		strings.Contains(name, "_") || strings.Contains(name, "..") ||
-		strings.HasPrefix(name, "xn--") ||
-		strings.HasPrefix(name, "sthree") ||
-		strings.HasPrefix(name, "sthree-configurator") ||
-		strings.HasSuffix(name, "-s3alias") ||
-		strings.HasSuffix(name, "--ol-s3") ||
-		net.ParseIP(name) != nil
+	pattern := "^[a-z0-9.-]+$"
+	regex, err := regexp.Compile(pattern)
+    if err != nil {
+        return false
+    }
+
+	return (len(name) >= 3 && len(name) <= 63) && regex.MatchString(name) &&
+		!strings.Contains(name, "..") &&
+		!strings.HasPrefix(name, "xn--") &&
+		!strings.HasPrefix(name, "sthree") &&
+		!strings.HasPrefix(name, "sthree-configurator") &&
+		!strings.HasSuffix(name, "-s3alias") &&
+		!strings.HasSuffix(name, "--ol-s3") &&
+		net.ParseIP(name) == nil
 }
 
 func ReadIgnoredFiles(file string) ([]string, error) {
