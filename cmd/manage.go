@@ -35,6 +35,12 @@ var manageCmd = &cobra.Command{
 			}
 		}
 
+		platform, err := aws.NewLambda(cfg)
+		if err != nil {
+			log.PrintError(err.Error())
+			return
+		}
+
 		runtime := config.NewPythonRuntime()
 		python := runtime.(*config.Python)
 		if !strings.HasPrefix(cfg.Lambda.Runtime, "python") || !python.IsDjango() {
@@ -48,11 +54,6 @@ var manageCmd = &cobra.Command{
 			return
 		}
 
-		platform, err := aws.NewLambda(cfg)
-		if err != nil {
-			log.PrintError(err.Error())
-			return
-		}
 		p.SetPlatform(platform)
 		p.Invoke(strings.Join(args, " "))
 	},
