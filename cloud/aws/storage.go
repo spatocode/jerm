@@ -18,6 +18,7 @@ import (
 type S3 struct {
 	config    *config.Config
 	awsConfig aws.Config
+	client *s3.Client
 }
 
 // NewS3 creates a new AWS S3 object
@@ -25,22 +26,22 @@ func NewS3(config *config.Config, awsConfig aws.Config) *S3 {
 	return &S3{
 		config:    config,
 		awsConfig: awsConfig,
+		client: s3.NewFromConfig(awsConfig),
 	}
 }
 
 // upload a file to AWS S3 bucket
 func (s *S3) Upload(filePath string) error {
-	client := s3.NewFromConfig(s.awsConfig)
-	_, err := client.HeadBucket(context.TODO(), &s3.HeadBucketInput{
+	_, err := s.client.HeadBucket(context.TODO(), &s3.HeadBucketInput{
 		Bucket: aws.String(s.config.Bucket),
 	})
 	if err != nil {
 		var nfErr *s3Types.NotFound
 		if errors.As(err, &nfErr) {
-			err := s.createBucket(client, true)
+			err := s.createBucket(true)
 			if err != nil {
 				log.Debug(fmt.Sprintf("error on creating s3 bucket with config %t", true))
-				err := s.createBucket(client, false)
+				err := s.createBucket(false)
 				if err != nil {
 					return err
 				}
@@ -64,7 +65,7 @@ func (s *S3) Upload(filePath string) error {
 
 	fileName := filepath.Base(filePath)
 	log.Debug(fmt.Sprintf("uploading file %s...", fileName))
-	_, err = client.PutObject(context.TODO(), &s3.PutObjectInput{
+	_, err = s.client.PutObject(context.TODO(), &s3.PutObjectInput{
 		Bucket: aws.String(s.config.Bucket),
 		Key:    aws.String(fileName),
 		Body:   file,
@@ -78,15 +79,14 @@ func (s *S3) Upload(filePath string) error {
 
 // delete a file from AWS S3 bucket
 func (s *S3) Delete(filePath string) error {
-	client := s3.NewFromConfig(s.awsConfig)
-	_, err := client.HeadBucket(context.TODO(), &s3.HeadBucketInput{
+	_, err := s.client.HeadBucket(context.TODO(), &s3.HeadBucketInput{
 		Bucket: aws.String(s.config.Bucket),
 	})
 	if err != nil {
 		return err
 	}
 
-	_, err = client.DeleteObject(context.TODO(), &s3.DeleteObjectInput{
+	_, err = s.client.DeleteObject(context.TODO(), &s3.DeleteObjectInput{
 		Bucket: aws.String(s.config.Bucket),
 		Key:    aws.String(filePath),
 	})
@@ -97,10 +97,10 @@ func (s *S3) Delete(filePath string) error {
 }
 
 // createBucket creates an AWS S3 bucket
-func (s *S3) createBucket(client *s3.Client, isConfig bool) error {
+func (s *S3) createBucket(isConfig bool) error {
 	log.Debug(fmt.Sprintf("creating s3 bucket with config %t", isConfig))
 	if isConfig {
-		_, err := client.CreateBucket(context.TODO(), &s3.CreateBucketInput{
+		_, err := s.client.CreateBucket(context.TODO(), &s3.CreateBucketInput{
 			Bucket: aws.String(s.config.Bucket),
 			CreateBucketConfiguration: &s3Types.CreateBucketConfiguration{
 				LocationConstraint: s3Types.BucketLocationConstraint(s.awsConfig.Region),
@@ -108,7 +108,7 @@ func (s *S3) createBucket(client *s3.Client, isConfig bool) error {
 		})
 		return err
 	}
-	_, err := client.CreateBucket(context.TODO(), &s3.CreateBucketInput{
+	_, err := s.client.CreateBucket(context.TODO(), &s3.CreateBucketInput{
 		Bucket: aws.String(s.config.Bucket),
 	})
 	return err

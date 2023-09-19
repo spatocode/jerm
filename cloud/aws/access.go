@@ -14,7 +14,7 @@ import (
 )
 
 type IAM struct {
-	awsConfig  aws.Config
+	client     *iam.Client
 	config     *config.Config
 	roleName   string
 	policyName string
@@ -24,7 +24,7 @@ type IAM struct {
 func NewIAM(cfg *config.Config, awsConfig aws.Config) *IAM {
 	return &IAM{
 		config:     cfg,
-		awsConfig:  awsConfig,
+		client:  iam.NewFromConfig(awsConfig),
 		roleName:   fmt.Sprintf("%s-JermLambdaServiceExecutionRole", cfg.GetFunctionName()),
 		policyName: "jerm-permissions",
 	}
@@ -49,8 +49,7 @@ func (i *IAM) checkPermissions() error {
 // and creates/updates one if unavailable.
 func (i *IAM) ensureIAMRolePolicy() error {
 	log.Debug("fetching IAM role policy...")
-	client := iam.NewFromConfig(i.awsConfig)
-	_, err := client.GetRolePolicy(context.TODO(), &iam.GetRolePolicyInput{
+	_, err := i.client.GetRolePolicy(context.TODO(), &iam.GetRolePolicyInput{
 		RoleName:   &i.roleName,
 		PolicyName: &i.policyName,
 	})
@@ -58,7 +57,7 @@ func (i *IAM) ensureIAMRolePolicy() error {
 		var nseErr *iamTypes.NoSuchEntityException
 		if errors.As(err, &nseErr) {
 			log.Debug("IAM role policy not found. creating new IAM role policy...")
-			_, perr := client.PutRolePolicy(context.TODO(), &iam.PutRolePolicyInput{
+			_, perr := i.client.PutRolePolicy(context.TODO(), &iam.PutRolePolicyInput{
 				RoleName:       &i.roleName,
 				PolicyName:     &i.policyName,
 				PolicyDocument: aws.String(awsAttachPolicy),
@@ -76,8 +75,7 @@ func (i *IAM) ensureIAMRolePolicy() error {
 // getIAMRole gets AWS IAM role
 func (i *IAM) getIAMRole() (*iamTypes.Role, error) {
 	log.Debug("fetching IAM role...")
-	client := iam.NewFromConfig(i.awsConfig)
-	resp, err := client.GetRole(context.TODO(), &iam.GetRoleInput{
+	resp, err := i.client.GetRole(context.TODO(), &iam.GetRoleInput{
 		RoleName: &i.roleName,
 	})
 	if err != nil {
@@ -95,8 +93,7 @@ func (i *IAM) getIAMRole() (*iamTypes.Role, error) {
 
 // createIAMRole creates AWS IAM role
 func (i *IAM) createIAMRole() (*iam.CreateRoleOutput, error) {
-	client := iam.NewFromConfig(i.awsConfig)
-	resp, err := client.CreateRole(context.TODO(), &iam.CreateRoleInput{
+	resp, err := i.client.CreateRole(context.TODO(), &iam.CreateRoleInput{
 		AssumeRolePolicyDocument: aws.String(awsAssumePolicy),
 		Path:                     aws.String("/"),
 		RoleName:                 &i.roleName,
