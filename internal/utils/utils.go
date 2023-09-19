@@ -3,7 +3,7 @@ package utils
 import (
 	"bufio"
 	"context"
-	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -43,15 +43,26 @@ func GetShellCommandOutput(command string, args ...string) (string, error) {
 	return string(out), err
 }
 
-func GetStdIn(prompt string) (string, error) {
+// GetStdIn gets a stdin prompt from user
+func ReadPromptInput(prompt string, input io.Reader) (string, error) {
 	if prompt != "" {
 		log.PrintInfo(prompt)
 	}
-	reader := bufio.NewReader(os.Stdin)
+	reader := bufio.NewReader(input)
 	value, err := reader.ReadString('\n')
 	if err != nil {
 		return "", err
 	}
-	fmt.Println()
 	return strings.TrimSpace(value), nil
+}
+
+func GetWorkspaceName() (string, error) {
+	workDir, err := os.Getwd()
+	if err != nil {
+		log.Debug(err.Error())
+		return "", err
+	}
+	splitPath := strings.Split(workDir, "/")
+	workspaceName := splitPath[len(splitPath)-1]
+	return workspaceName, err
 }
