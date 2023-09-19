@@ -17,4 +17,5 @@ type CloudPlatform interface {
 	Build() (string, error)
 	Rollback(int) error
 	Logs()
+	Invoke(string) error
 }

@@ -53,6 +53,14 @@ func (p *Project) SetPlatform(cloud CloudPlatform) {
 	p.cloud = cloud
 }
 
+// Invoke a function
+func (p *Project) Invoke(command string) {
+	err := p.cloud.Invoke(command)
+	if err != nil {
+		log.PrintError(err.Error())
+	}
+}
+
 // Deploy deploys the project to the cloud
 func (p *Project) Deploy() {
 	log.PrintfInfo("Deploying project %s...\n", p.config.Name)
