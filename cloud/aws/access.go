@@ -24,7 +24,7 @@ type IAM struct {
 func NewIAM(cfg *config.Config, awsConfig aws.Config) *IAM {
 	return &IAM{
 		config:     cfg,
-		client:  iam.NewFromConfig(awsConfig),
+		client:     iam.NewFromConfig(awsConfig),
 		roleName:   fmt.Sprintf("%s-JermLambdaServiceExecutionRole", cfg.GetFunctionName()),
 		policyName: "jerm-permissions",
 	}

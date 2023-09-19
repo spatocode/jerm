@@ -18,14 +18,14 @@ import (
 
 // CloudWatch is the AWS Cloudwatch operations
 type CloudWatch struct {
-	config    *config.Config
-	client	*cloudwatchlogs.Client
+	config *config.Config
+	client *cloudwatchlogs.Client
 }
 
 // NewCloudWatch creates a new AWS Cloudwatch
 func NewCloudWatch(config *config.Config, awsConfig aws.Config) *CloudWatch {
 	return &CloudWatch{
-		config:    config,
+		config: config,
 		client: cloudwatchlogs.NewFromConfig(awsConfig),
 	}
 }

@@ -23,8 +23,8 @@ import (
 type ApiGateway struct {
 	s3         *S3
 	cfTemplate *cf.Template
-	cfClient *cloudformation.Client
-	client		*apigateway.Client
+	cfClient   *cloudformation.Client
+	client     *apigateway.Client
 	monitor    *CloudWatch
 	config     *config.Config
 	awsConfig  aws.Config
@@ -33,12 +33,12 @@ type ApiGateway struct {
 func NewApiGateway(config *config.Config, awsConfig aws.Config) *ApiGateway {
 	s3 := NewS3(config, awsConfig)
 	return &ApiGateway{
-		s3: s3,
+		s3:        s3,
 		awsConfig: awsConfig,
-		monitor: NewCloudWatch(config, awsConfig),
-		cfClient: cloudformation.NewFromConfig(awsConfig),
-		client: apigateway.NewFromConfig(awsConfig),
-		config: config,
+		monitor:   NewCloudWatch(config, awsConfig),
+		cfClient:  cloudformation.NewFromConfig(awsConfig),
+		client:    apigateway.NewFromConfig(awsConfig),
+		config:    config,
 	}
 }
 

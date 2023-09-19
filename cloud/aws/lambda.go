@@ -42,7 +42,7 @@ type Lambda struct {
 	retry             int
 	maxWaiterDuration time.Duration
 	timeout           int32
-	client			  *lambda.Client
+	client            *lambda.Client
 }
 
 // NewLambda instantiates a new AWS Lambda service

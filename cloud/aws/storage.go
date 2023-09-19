@@ -18,7 +18,7 @@ import (
 type S3 struct {
 	config    *config.Config
 	awsConfig aws.Config
-	client *s3.Client
+	client    *s3.Client
 }
 
 // NewS3 creates a new AWS S3 object
@@ -26,7 +26,7 @@ func NewS3(config *config.Config, awsConfig aws.Config) *S3 {
 	return &S3{
 		config:    config,
 		awsConfig: awsConfig,
-		client: s3.NewFromConfig(awsConfig),
+		client:    s3.NewFromConfig(awsConfig),
 	}
 }
 
