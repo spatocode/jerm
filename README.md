@@ -1,6 +1,6 @@
 # Jerm
 
-Jerm is an open source tool that helps you deploy serverless app across all clouds.
+Jerm is an open source tool that helps you deploy serverless apps seamlessly across all clouds.
 
 ## Quickstart
 
