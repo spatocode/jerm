@@ -3,7 +3,8 @@
 	"stage": "dev",
 	"bucket": "jerm-1699348021",
 	"region": "us-west-2",
-	"lambda": {
+	"platform": {
+		"name": "lambda",
 		"runtime": "python3.11",
 		"timeout": 30,
 		"role": "arn:aws:iam::269360183919:role/bodystats-dev-JermTestLambdaServiceExecutionRole",
