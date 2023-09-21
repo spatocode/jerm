@@ -28,4 +28,4 @@ Jerm is still under early development and all contributions are welcomed.
 
 ## License
 
-Jerm is licensed under the BSD-3-Clause license
+Jerm is licensed under the [BSD-3-Clause license](https://github.com/spatocode/jerm/blob/main/LICENSE)
