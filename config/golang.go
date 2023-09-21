@@ -45,8 +45,20 @@ func (g *Go) getVersion() (string, error) {
 }
 
 // Builds the go deployment package
-func (g *Go) Build(config *Config) (string, error) {
-	return "", nil
+// It returns the executable path and the function name
+func (g *Go) Build(config *Config, functionContent string) (string, string, error) {
+	_, err := utils.GetShellCommandOutput("go", "mod", "tidy")
+	if err != nil {
+		return "", "", err
+	}
+
+	env := []string{"GOOS=linux", "GOARCH=amd64", "CGO_ENABLED=0"}
+	_, err = utils.GetShellCommandOutputWithEnv(env, "go", "build", "main.go")
+	if err != nil {
+		return "", "", err
+	}
+
+	return "main", "main", nil
 }
 
 // Entry is the directory where the cloud function handler resides.

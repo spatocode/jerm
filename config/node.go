@@ -40,8 +40,8 @@ func (n *Node) getVersion() (string, error) {
 }
 
 // Builds the nodejs deployment package
-func (n *Node) Build(config *Config) (string, error) {
-	return "", nil
+func (n *Node) Build(config *Config, functionContent string) (string, string, error) {
+	return "", "", nil
 }
 
 // lambdaRuntime is the name of the nodejs runtime as specified by AWS Lambda

@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -104,17 +103,14 @@ func (l *Lambda) Build() (string, error) {
 		}
 	}()
 
-	handler, err := r.Build(l.config)
-	dir := filepath.Dir(handler)
+	handlerFilepath, function, err := r.Build(l.config, awsLambdaHandler)
 	if err != nil {
 		return "", err
 	}
 
-	if l.config.Lambda.Handler == "" {
-		err := l.CreateFunctionEntry(handler)
-		return dir, err
-	}
-	return dir, nil
+	l.functionHandler = function
+
+	return handlerFilepath, nil
 }
 
 func (l *Lambda) Invoke(command string) error {
@@ -392,24 +388,6 @@ func (l *Lambda) listLambdaVersions() ([]lambdaTypes.FunctionConfiguration, erro
 		return nil, err
 	}
 	return response.Versions, err
-}
-
-// CreateFunctionEntry creates a Lambda function handler file
-func (l *Lambda) CreateFunctionEntry(file string) error {
-	log.Debug("creating lambda handler...")
-	f, err := os.Create(file)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	handler := strings.ReplaceAll(awsLambdaHandler, ".wsgi", l.config.Entry+".wsgi")
-	_, err = f.Write([]byte(handler))
-	if err != nil {
-		return err
-	}
-	l.functionHandler = "handler.lambda_handler"
-	return nil
 }
 
 func (l *Lambda) isAlreadyDeployed() (bool, error) {

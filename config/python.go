@@ -19,6 +19,10 @@ import (
 	"github.com/spatocode/jerm/internal/utils"
 )
 
+const (
+	DefaultPythonLambdaFunction = "handler.lambda_handler"
+)
+
 type Python struct {
 	*Runtime
 }
@@ -93,18 +97,19 @@ func (p *Python) getVirtualEnvironment() (string, error) {
 }
 
 // Builds the Python deployment package
-func (p *Python) Build(config *Config) (string, error) {
+func (p *Python) Build(config *Config, functionContent string) (string, string, error) {
+	function := config.Lambda.Handler
 	tempDir, err := os.MkdirTemp(os.TempDir(), "jerm-python")
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
-	handlerPath := filepath.Join(tempDir, "handler.py")
+	handlerFilepath := filepath.Join(tempDir, "handler.py")
 
 	venv, err := p.getVirtualEnvironment()
 	if err != nil {
 		//TODO: installs requirements listed in requirements.txt file
-		return "", fmt.Errorf("cannot find a virtual env. Please ensure you're running in a virtual env")
+		return "", "", fmt.Errorf("cannot find a virtual env. Please ensure you're running in a virtual env")
 	}
 
 	version := strings.Split(p.Version, ".")
@@ -122,22 +127,50 @@ func (p *Python) Build(config *Config) (string, error) {
 
 	err = p.installNecessaryDependencies(tempDir, sitePackages, dependencies)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	err = p.copyNecessaryFilesToTempDir(config.Dir, tempDir, jermIgnoreFile)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	err = p.copyNecessaryFilesToTempDir(sitePackages, tempDir, jermIgnoreFile)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	log.Debug(fmt.Sprintf("built Python deployment package at %s", tempDir))
 
-	return handlerPath, err
+	if function == "" {
+		function, err = p.createFunctionEntry(config, functionContent, handlerFilepath)
+		if err != nil {
+			return "", "", err
+		}
+	}
+
+	dir := filepath.Dir(handlerFilepath)
+	if err != nil {
+		return "", "", err
+	}
+	return dir, function, err
+}
+
+// createFunctionEntry creates a serverless function handler file
+func (p *Python) createFunctionEntry(config *Config, functionContent , file string) (string, error) {
+	log.Debug("creating lambda handler...")
+	f, err := os.Create(file)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	handler := strings.ReplaceAll(functionContent, ".wsgi", config.Entry+".wsgi")
+	_, err = f.Write([]byte(handler))
+	if err != nil {
+		return "", err
+	}
+	return DefaultPythonLambdaFunction, nil
 }
 
 // Copies files from src to dest

@@ -37,7 +37,7 @@ var (
 
 type RuntimeInterface interface {
 	// Builds the deployment package for the underlying runtime
-	Build(*Config) (string, error)
+	Build(*Config, string) (string, string, error)
 
 	// Entry is the directory where the cloud function handler resides.
 	// The directory can be a file.
@@ -69,8 +69,8 @@ func NewRuntime() RuntimeInterface {
 	}
 }
 
-func (r *Runtime) Build(*Config) (string, error) {
-	return "", nil
+func (r *Runtime) Build(*Config, string) (string, string, error) {
+	return "", "", nil
 }
 
 func (r *Runtime) Entry() string {
