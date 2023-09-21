@@ -43,8 +43,11 @@ func GetShellCommandOutput(command string, args ...string) (string, error) {
 	cmd := exec.Command(command, args...)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
-	out, _ := cmd.Output()
-	return string(out), errors.New(stderr.String())
+	out, err := cmd.Output()
+	if err != nil {
+		return string(out), errors.New(stderr.String())
+	}
+	return string(out), err
 }
 
 func GetShellCommandOutputWithEnv(env, command string, args ...string) (string, error) {
@@ -52,8 +55,11 @@ func GetShellCommandOutputWithEnv(env, command string, args ...string) (string, 
 	cmd.Env = append(os.Environ(), env)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
-	out, _ := cmd.Output()
-	return string(out), errors.New(stderr.String())
+	out, err := cmd.Output()
+	if err != nil {
+		return string(out), errors.New(stderr.String())
+	}
+	return string(out), err
 }
 
 // GetStdIn gets a stdin prompt from user
