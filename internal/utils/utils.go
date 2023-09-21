@@ -50,9 +50,9 @@ func GetShellCommandOutput(command string, args ...string) (string, error) {
 	return string(out), err
 }
 
-func GetShellCommandOutputWithEnv(env, command string, args ...string) (string, error) {
+func GetShellCommandOutputWithEnv(env []string, command string, args ...string) (string, error) {
 	cmd := exec.Command(command, args...)
-	cmd.Env = append(os.Environ(), env)
+	cmd.Env = append(os.Environ(), env...)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
