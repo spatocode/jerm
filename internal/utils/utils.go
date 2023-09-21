@@ -2,7 +2,9 @@ package utils
 
 import (
 	"bufio"
+	"bytes"
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"os"
@@ -39,8 +41,19 @@ func Request(location string) (*http.Response, error) {
 
 func GetShellCommandOutput(command string, args ...string) (string, error) {
 	cmd := exec.Command(command, args...)
-	out, err := cmd.Output()
-	return string(out), err
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, _ := cmd.Output()
+	return string(out), errors.New(stderr.String())
+}
+
+func GetShellCommandOutputWithEnv(env, command string, args ...string) (string, error) {
+	cmd := exec.Command(command, args...)
+	cmd.Env = append(os.Environ(), env)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, _ := cmd.Output()
+	return string(out), errors.New(stderr.String())
 }
 
 // GetStdIn gets a stdin prompt from user
