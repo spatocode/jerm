@@ -130,9 +130,11 @@ func (r *Runtime) Entry() string {
 }
 
 func (r *Runtime) lambdaRuntime() (string, error) {
-	// if r.Name == RuntimeUnknown {
+	if r.Name == RuntimeUnknown {
 		return "", errors.New("cannot detect runtime. please specify runtime in your Jerm.json file")
-	// }
-	// v := strings.Split(r.Version, ".")
-	// return fmt.Sprintf("%s%s", r.Name, v[0]), nil
+	}
+	// TODO: Some AWS runtime id doesn't tally with this format.
+	// Need to support as needed
+	v := strings.Split(r.Version, ".")
+	return fmt.Sprintf("%s%s", r.Name, v[0]), nil
 }
