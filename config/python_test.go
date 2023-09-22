@@ -15,7 +15,7 @@ func TestIgnoredFilesWhileCopying(t *testing.T) {
 
 	pr := NewPythonRuntime()
 	p := pr.(*Python)
-	err := p.copyNecessaryFilesToTempDir("../assets/tests", "../assets", "../assets/tests/.jermignore")
+	err := p.copyNecessaryFilesToPackageDir("../assets/tests", "../assets", "../assets/tests/.jermignore")
 	testfile1Exists := utils.FileExists("../assets/testfile1")
 	testfile2Exists := utils.FileExists("../assets/testfile2")
 	jermJsonExists := utils.FileExists(jermJson)
