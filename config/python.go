@@ -157,7 +157,7 @@ func (p *Python) Build(config *Config, functionContent string) (string, string, 
 }
 
 // createFunctionEntry creates a serverless function handler file
-func (p *Python) createFunctionEntry(config *Config, functionContent , file string) (string, error) {
+func (p *Python) createFunctionEntry(config *Config, functionContent, file string) (string, error) {
 	log.Debug("creating lambda handler...")
 	f, err := os.Create(file)
 	if err != nil {
