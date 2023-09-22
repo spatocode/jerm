@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	DefaultPythonLambdaFunction = "handler.lambda_handler"
+	DefaultPythonFunctionFile = "handler"
 )
 
 type Python struct {
@@ -170,7 +170,7 @@ func (p *Python) createFunctionEntry(config *Config, functionContent, file strin
 	if err != nil {
 		return "", err
 	}
-	return DefaultPythonLambdaFunction, nil
+	return fmt.Sprintf("%s.%s", DefaultPythonFunctionFile, DefaultServerlessFunction), nil
 }
 
 // Copies files from src to dest

@@ -2,6 +2,7 @@ package config
 
 import (
 	"errors"
+	"os"
 
 	"github.com/spatocode/jerm/internal/utils"
 )
@@ -71,7 +72,12 @@ func NewRuntime() RuntimeInterface {
 }
 
 func (r *Runtime) Build(*Config, string) (string, string, error) {
-	return "", "", nil
+	dir, err := os.Getwd()
+	if err != nil {
+		return "", "", err
+	}
+
+	return dir, DefaultServerlessFunction, nil
 }
 
 func (r *Runtime) Entry() string {
