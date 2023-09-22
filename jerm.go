@@ -213,6 +213,9 @@ func (p *Project) archivePackage(archivePath, dir string) (int64, error) {
 	}
 
 	info, err := archive.Stat()
+	if err != nil {
+		return 0, err
+	}
 
 	return info.Size(), err
 }
