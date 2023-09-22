@@ -44,7 +44,7 @@ func GetShellCommandOutput(command string, args ...string) (string, error) {
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
-	if err != nil {
+	if err != nil && stderr.Available() != 0 {
 		return string(out), errors.New(stderr.String())
 	}
 	return string(out), err
@@ -56,7 +56,7 @@ func GetShellCommandOutputWithEnv(env []string, command string, args ...string) 
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
-	if err != nil {
+	if err != nil && stderr.Available() != 0 {
 		return string(out), errors.New(stderr.String())
 	}
 	return string(out), err
