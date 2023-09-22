@@ -12,6 +12,7 @@ const (
 	RuntimePython             = "python"
 	RuntimeGo                 = "go"
 	RuntimeNode               = "nodejs"
+	RuntimeStatic             = "static"
 	DefaultNodeVersion        = "18.13.0"
 	DefaultPythonVersion      = "3.9.0"
 	DefaultGoVersion          = "1.19.0"
@@ -65,10 +66,12 @@ func NewRuntime() RuntimeInterface {
 		return NewGoRuntime()
 	case utils.FileExists("package.json"):
 		return NewNodeRuntime()
+	case utils.FileExists("index.html"):
+		r.Name = RuntimeStatic
 	default:
 		r.Name = RuntimeUnknown
-		return r
 	}
+	return r
 }
 
 func (r *Runtime) Build(*Config, string) (string, string, error) {
