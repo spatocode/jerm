@@ -7,13 +7,14 @@ import (
 )
 
 const (
-	RuntimeUnknown       = "unknown"
-	RuntimePython        = "python"
-	RuntimeGo            = "go"
-	RuntimeNode          = "nodejs"
-	DefaultNodeVersion   = "18.13.0"
-	DefaultPythonVersion = "3.9.0"
-	DefaultGoVersion     = "1.19.0"
+	RuntimeUnknown            = "unknown"
+	RuntimePython             = "python"
+	RuntimeGo                 = "go"
+	RuntimeNode               = "nodejs"
+	DefaultNodeVersion        = "18.13.0"
+	DefaultPythonVersion      = "3.9.0"
+	DefaultGoVersion          = "1.19.0"
+	DefaultServerlessFunction = "handler"
 )
 
 var (
