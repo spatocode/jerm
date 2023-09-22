@@ -2,8 +2,13 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
+	"github.com/otiai10/copy"
+	"github.com/spatocode/jerm/internal/log"
 	"github.com/spatocode/jerm/internal/utils"
 )
 
@@ -74,13 +79,50 @@ func NewRuntime() RuntimeInterface {
 	return r
 }
 
-func (r *Runtime) Build(*Config, string) (string, string, error) {
-	dir, err := os.Getwd()
+func (r *Runtime) Build(config *Config, functionContent string) (string, string, error) {
+	tempDir, err := os.MkdirTemp(os.TempDir(), "jerm-package")
 	if err != nil {
 		return "", "", err
 	}
 
-	return dir, DefaultServerlessFunction, nil
+	err = r.copyNecessaryFilesToPackageDir(config.Dir, tempDir, jermIgnoreFile)
+	if err != nil {
+		return "", "", err
+	}
+
+	return tempDir, DefaultServerlessFunction, nil
+}
+
+// Copies files from src to dest ignoring file names listed in ignoreFile
+func (r *Runtime) copyNecessaryFilesToPackageDir(src, dest, ignoreFile string) error {
+	log.Debug(fmt.Sprintf("copying necessary files to package dir %s...", dest))
+
+	ignoredFiles := defaultIgnoredGlobs
+	files, err := ReadIgnoredFiles(ignoreFile)
+	if err == nil {
+		ignoredFiles = append(ignoredFiles, files...)
+	}
+
+	opt := copy.Options{
+		Skip: func(srcinfo os.FileInfo, src, dest string) (bool, error) {
+			for _, ignoredFile := range ignoredFiles {
+				match, _ := filepath.Match(ignoredFile, srcinfo.Name())
+				matchedFile := srcinfo.Name() == ignoredFile || match ||
+					strings.HasSuffix(srcinfo.Name(), ignoredFile) ||
+					strings.HasPrefix(srcinfo.Name(), ignoredFile)
+				if matchedFile {
+					return matchedFile, nil
+				}
+			}
+			return false, nil
+		},
+	}
+	err = copy.Copy(src, dest, opt)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (r *Runtime) Entry() string {
@@ -88,5 +130,9 @@ func (r *Runtime) Entry() string {
 }
 
 func (r *Runtime) lambdaRuntime() (string, error) {
-	return "", errors.New("cannot detect runtime. please specify runtime in your Jerm.json file")
+	// if r.Name == RuntimeUnknown {
+		return "", errors.New("cannot detect runtime. please specify runtime in your Jerm.json file")
+	// }
+	// v := strings.Split(r.Version, ".")
+	// return fmt.Sprintf("%s%s", r.Name, v[0]), nil
 }

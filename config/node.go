@@ -20,7 +20,7 @@ func NewNodeRuntime() RuntimeInterface {
 	n.Name = RuntimeNode
 	version, err := n.getVersion()
 	if err != nil {
-		log.Debug(fmt.Sprintf("encountered an error while getting nodejs version. Default to %s", DefaultNodeVersion))
+		log.Debug(fmt.Sprintf("encountered an error while getting nodejs version. Default to v%s", DefaultNodeVersion))
 		n.Version = DefaultNodeVersion
 		return n
 	}
@@ -37,11 +37,6 @@ func (n *Node) getVersion() (string, error) {
 	}
 	nodeVersion = nodeVersion[1:]
 	return nodeVersion, nil
-}
-
-// Builds the nodejs deployment package
-func (n *Node) Build(config *Config, functionContent string) (string, string, error) {
-	return "", "", nil
 }
 
 // lambdaRuntime is the name of the nodejs runtime as specified by AWS Lambda

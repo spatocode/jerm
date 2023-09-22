@@ -103,14 +103,14 @@ func (l *Lambda) Build() (string, error) {
 		}
 	}()
 
-	handlerFilepath, function, err := r.Build(l.config, awsLambdaHandler)
+	packageDir, function, err := r.Build(l.config, awsLambdaHandler)
 	if err != nil {
 		return "", err
 	}
 
 	l.functionHandler = function
 
-	return handlerFilepath, nil
+	return packageDir, nil
 }
 
 func (l *Lambda) Invoke(command string) error {

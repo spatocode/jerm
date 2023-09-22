@@ -14,7 +14,6 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/otiai10/copy"
 	"github.com/spatocode/jerm/internal/log"
 	"github.com/spatocode/jerm/internal/utils"
 )
@@ -99,7 +98,7 @@ func (p *Python) getVirtualEnvironment() (string, error) {
 // Builds the Python deployment package
 func (p *Python) Build(config *Config, functionContent string) (string, string, error) {
 	function := config.Lambda.Handler
-	tempDir, err := os.MkdirTemp(os.TempDir(), "jerm-python")
+	tempDir, err := os.MkdirTemp(os.TempDir(), "jerm-package")
 	if err != nil {
 		return "", "", err
 	}
@@ -130,12 +129,12 @@ func (p *Python) Build(config *Config, functionContent string) (string, string, 
 		return "", "", err
 	}
 
-	err = p.copyNecessaryFilesToTempDir(config.Dir, tempDir, jermIgnoreFile)
+	err = p.copyNecessaryFilesToPackageDir(config.Dir, tempDir, jermIgnoreFile)
 	if err != nil {
 		return "", "", err
 	}
 
-	err = p.copyNecessaryFilesToTempDir(sitePackages, tempDir, jermIgnoreFile)
+	err = p.copyNecessaryFilesToPackageDir(sitePackages, tempDir, jermIgnoreFile)
 	if err != nil {
 		return "", "", err
 	}
@@ -149,11 +148,10 @@ func (p *Python) Build(config *Config, functionContent string) (string, string, 
 		}
 	}
 
-	dir := filepath.Dir(handlerFilepath)
 	if err != nil {
 		return "", "", err
 	}
-	return dir, function, err
+	return tempDir, function, err
 }
 
 // createFunctionEntry creates a serverless function handler file
@@ -171,38 +169,6 @@ func (p *Python) createFunctionEntry(config *Config, functionContent, file strin
 		return "", err
 	}
 	return fmt.Sprintf("%s.%s", DefaultPythonFunctionFile, DefaultServerlessFunction), nil
-}
-
-// Copies files from src to dest
-func (p *Python) copyNecessaryFilesToTempDir(src, dest, ignoreFile string) error {
-	log.Debug("copying necessary Python files...")
-
-	ignoredFiles := defaultIgnoredGlobs
-	files, err := ReadIgnoredFiles(ignoreFile)
-	if err == nil {
-		ignoredFiles = append(ignoredFiles, files...)
-	}
-
-	opt := copy.Options{
-		Skip: func(srcinfo os.FileInfo, src, dest string) (bool, error) {
-			for _, ignoredFile := range ignoredFiles {
-				match, _ := filepath.Match(ignoredFile, srcinfo.Name())
-				matchedFile := srcinfo.Name() == ignoredFile || match ||
-					strings.HasSuffix(srcinfo.Name(), ignoredFile) ||
-					strings.HasPrefix(srcinfo.Name(), ignoredFile)
-				if matchedFile {
-					return matchedFile, nil
-				}
-			}
-			return false, nil
-		},
-	}
-	err = copy.Copy(src, dest, opt)
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 // installRequirements installs requirements listed in requirements.txt file
