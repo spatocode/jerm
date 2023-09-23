@@ -220,6 +220,19 @@ func (p *Project) archivePackage(archivePath, dir string) (int64, error) {
 	return info.Size(), err
 }
 
+func Configure(configFile string) (*config.Config, error) {
+	cfg, err := ReadConfig(configFile)
+	if err != nil {
+		c := config.Config{}
+		cfg, err = c.PromptConfig()
+		if err != nil {
+			return nil, err
+		}
+		return cfg, err
+	}
+	return cfg, err
+}
+
 func Verbose(cmd *cobra.Command) {
 	verbose, _ := cmd.Flags().GetBool("verbose")
 	if verbose {
