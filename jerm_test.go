@@ -9,7 +9,7 @@ import (
 func TestJermConfigure(t *testing.T) {
 	assert := assert.New(t)
 	role := "arn:aws:iam::269360183919:role/bodystats-dev-JermTestLambdaServiceExecutionRole"
-	c, err :=  Configure("assets/tests/jerm.json")
+	c, err := Configure("assets/tests/jerm.json")
 	assert.Nil(err)
 	assert.Equal("bodystats", c.Name)
 	assert.Equal("dev", c.Stage)
