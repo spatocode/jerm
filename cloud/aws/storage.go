@@ -32,27 +32,8 @@ func NewS3(config *config.Config, awsConfig aws.Config) *S3 {
 
 // upload a file to AWS S3 bucket
 func (s *S3) Upload(filePath string) error {
-	_, err := s.client.HeadBucket(context.TODO(), &s3.HeadBucketInput{
-		Bucket: aws.String(s.config.Bucket),
-	})
-	if err != nil {
-		var nfErr *s3Types.NotFound
-		if errors.As(err, &nfErr) {
-			err := s.createBucket(true)
-			if err != nil {
-				log.Debug(fmt.Sprintf("error on creating s3 bucket with config %t", true))
-				err := s.createBucket(false)
-				if err != nil {
-					return err
-				}
-			}
-		} else {
-			return err
-		}
-	}
-
 	f, err := os.Stat(filePath)
-	if f.Size() == 0 || err != nil {
+	if err != nil || f.Size() == 0 {
 		msg := "encountered issue with packaged file"
 		return errors.New(msg)
 	}
@@ -77,16 +58,26 @@ func (s *S3) Upload(filePath string) error {
 	return nil
 }
 
-// delete a file from AWS S3 bucket
-func (s *S3) Delete(filePath string) error {
+func (s *S3) headBucket() error {
 	_, err := s.client.HeadBucket(context.TODO(), &s3.HeadBucketInput{
 		Bucket: aws.String(s.config.Bucket),
 	})
 	if err != nil {
-		return err
+		log.Debug(fmt.Sprintf("s3 bucket error %#v", err))
 	}
+	return err
+}
 
-	_, err = s.client.DeleteObject(context.TODO(), &s3.DeleteObjectInput{
+func (s *S3) Accessible() error {
+	log.Debug(fmt.Sprintf("checking s3 bucket %s...", s.config.Bucket))
+	err := s.headBucket()
+	return err
+}
+
+// delete a file from AWS S3 bucket
+func (s *S3) Delete(filePath string) error {
+	log.Debug(fmt.Sprintf("deleting s3 bucket object %s...", filePath))
+	_, err := s.client.DeleteObject(context.TODO(), &s3.DeleteObjectInput{
 		Bucket: aws.String(s.config.Bucket),
 		Key:    aws.String(filePath),
 	})
@@ -96,9 +87,9 @@ func (s *S3) Delete(filePath string) error {
 	return nil
 }
 
-// createBucket creates an AWS S3 bucket
-func (s *S3) createBucket(isConfig bool) error {
-	log.Debug(fmt.Sprintf("creating s3 bucket with config %t", isConfig))
+// CreateBucket creates an AWS S3 bucket
+func (s *S3) CreateBucket(isConfig bool) error {
+	log.Debug(fmt.Sprintf("creating s3 bucket with config %t...", isConfig))
 	if isConfig {
 		_, err := s.client.CreateBucket(context.TODO(), &s3.CreateBucketInput{
 			Bucket: aws.String(s.config.Bucket),

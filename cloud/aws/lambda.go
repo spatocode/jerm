@@ -17,6 +17,7 @@ import (
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
 	lambdaTypes "github.com/aws/aws-sdk-go-v2/service/lambda/types"
+	s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 
 	"github.com/spatocode/jerm"
 	"github.com/spatocode/jerm/config"
@@ -176,6 +177,10 @@ func (l *Lambda) Deploy(zipPath string) (bool, error) {
 		return true, nil
 	}
 
+	if err = l.storage.Accessible(); err != nil {
+		return false, err
+	}
+
 	l.storage.Upload(zipPath)
 	functionArn, err := l.createLambdaFunction(zipPath)
 	if err != nil {
@@ -195,6 +200,10 @@ func (l *Lambda) Deploy(zipPath string) (bool, error) {
 
 	err = utils.RemoveLocalFile(zipPath)
 	if err != nil {
+		return false, err
+	}
+
+	if err = l.storage.Accessible(); err != nil {
 		return false, err
 	}
 
@@ -232,6 +241,22 @@ func (l *Lambda) scheduleEvents() {
 }
 
 func (l *Lambda) Update(zipPath string) error {
+	if err := l.storage.Accessible(); err != nil {
+		var nfErr *s3Types.NotFound
+		if errors.As(err, &nfErr) {
+			err = l.storage.CreateBucket(true)
+			if err != nil {
+				log.Debug(fmt.Sprintf("error on creating s3 bucket with config %t", true))
+				err := l.storage.CreateBucket(false)
+				if err != nil {
+					return err
+				}
+			}
+		} else {
+			return err
+		}
+	}
+
 	err := l.storage.Upload(zipPath)
 	if err != nil {
 		return err
