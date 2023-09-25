@@ -20,7 +20,7 @@ import (
 type Config config.Config
 
 const (
-	Version           = "0.1.1"
+	Version           = "0.1.2"
 	DefaultConfigFile = "jerm.json"
 	ArchiveFile       = "jerm.zip"
 )
