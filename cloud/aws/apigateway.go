@@ -137,6 +137,10 @@ func (a *ApiGateway) getRestApis() ([]*string, error) {
 	resp, err := a.client.GetRestApis(context.TODO(), &apigateway.GetRestApisInput{
 		Limit: aws.Int32(500),
 	})
+	if err != nil {
+		return nil, err
+	}
+
 	for _, item := range resp.Items {
 		if *item.Name == a.config.GetFunctionName() {
 			apiIds = append(apiIds, item.Id)

@@ -83,6 +83,9 @@ func (i *IAM) getIAMRole() (*iamTypes.Role, error) {
 		if errors.As(err, &nseErr) {
 			log.Debug("IAM role not found. creating new IAM role ...")
 			resp, err := i.createIAMRole()
+			if err != nil {
+				return nil, err
+			}
 			return resp.Role, err
 		}
 		return nil, err

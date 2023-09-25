@@ -20,7 +20,7 @@ import (
 type Config config.Config
 
 const (
-	Version           = "0.0.2"
+	Version           = "0.1.1"
 	DefaultConfigFile = "jerm.json"
 	ArchiveFile       = "jerm.zip"
 )
@@ -213,6 +213,9 @@ func (p *Project) archivePackage(archivePath, dir string) (int64, error) {
 	}
 
 	info, err := archive.Stat()
+	if err != nil {
+		return 0, err
+	}
 
 	return info.Size(), err
 }
