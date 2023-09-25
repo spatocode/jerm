@@ -220,6 +220,21 @@ func (p *Project) archivePackage(archivePath, dir string) (int64, error) {
 	return info.Size(), err
 }
 
+// Configure sets up Jerm using jerm.json configuration file.
+// If the configuration file is not found, it prompts the user for setup.
+func Configure(configFile string) (*config.Config, error) {
+	cfg, err := ReadConfig(configFile)
+	if err != nil {
+		c := &config.Config{}
+		c, err = c.PromptConfig()
+		if err != nil {
+			return nil, err
+		}
+		return c, err
+	}
+	return cfg, err
+}
+
 func Verbose(cmd *cobra.Command) {
 	verbose, _ := cmd.Flags().GetBool("verbose")
 	if verbose {
