@@ -53,7 +53,7 @@ func (s *S3) Upload(filePath string) error {
 	})
 	if err != nil {
 		msg := "encountered error while uploading package. Aborting"
-		return errors.New(msg)
+		return fmt.Errorf("%s : %s", err.Error(), msg)
 	}
 	return nil
 }

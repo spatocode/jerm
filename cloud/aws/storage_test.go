@@ -189,7 +189,7 @@ func TestS3Upload(t *testing.T) {
 		{
 			name: "upload object failure",
 			args: args{
-				objectName: "testupload",
+				objectName: "../../assets/tests/testfile1",
 				withAPIOptionsFunc: func(s *middleware.Stack) error {
 					return s.Finalize.Add(
 						middleware.FinalizeMiddlewareFunc(
@@ -204,13 +204,13 @@ func TestS3Upload(t *testing.T) {
 					)
 				},
 			},
-			want:    fmt.Errorf("operation error S3: PutObject, PutObjectError"),
+			want:    fmt.Errorf("operation error S3: PutObject, PutObjectError -> encountered error while uploading package. Aborting"),
 			wantErr: true,
 		},
 		{
 			name: "upload object success",
 			args: args{
-				objectName: "uploadobject",
+				objectName: "../../assets/tests/testfile2",
 				withAPIOptionsFunc: func(s *middleware.Stack) error {
 					return s.Finalize.Add(
 						middleware.FinalizeMiddlewareFunc(

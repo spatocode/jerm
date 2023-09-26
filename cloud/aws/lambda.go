@@ -126,7 +126,7 @@ func (l *Lambda) Invoke(command string) error {
 // invokeLambdaFunction invokes a lambda function with payload
 func (l *Lambda) invokeLambdaFunction(payload []byte) error {
 	out, err := l.client.Invoke(context.TODO(), &lambda.InvokeInput{
-    FunctionName:   aws.String(l.config.GetFunctionName()),
+		FunctionName:   aws.String(l.config.GetFunctionName()),
 		InvocationType: lambdaTypes.InvocationTypeRequestResponse,
 		LogType:        lambdaTypes.LogTypeTail,
 		Payload:        payload,
