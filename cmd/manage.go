@@ -4,8 +4,6 @@ Copyright © 2023 Ekene Izukanne <ekeneizukanne@gmail.com>
 package cmd
 
 import (
-	"errors"
-	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -27,12 +25,10 @@ var manageCmd = &cobra.Command{
 			return
 		}
 
-		cfg, err := jerm.ReadConfig(jerm.DefaultConfigFile)
+		cfg, err := jerm.Configure(jerm.DefaultConfigFile)
 		if err != nil {
-			var pErr *os.PathError
-			if !errors.As(err, &pErr) {
-				log.PrintError(err.Error())
-			}
+			log.PrintError(err.Error())
+			return
 		}
 
 		platform, err := aws.NewLambda(cfg)

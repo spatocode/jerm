@@ -4,7 +4,6 @@ Copyright © 2023 Ekene Izukanne <ekeneizukanne@gmail.com>
 package cmd
 
 import (
-	"errors"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -23,21 +22,19 @@ var undeployCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		jerm.Verbose(cmd)
 
-		config, err := jerm.ReadConfig(jerm.DefaultConfigFile)
-		if err != nil {
-			var pErr *os.PathError
-			if !errors.As(err, &pErr) {
-				log.PrintError(err.Error())
-			}
-		}
-
-		p, err := jerm.New(config)
+		cfg, err := jerm.Configure(jerm.DefaultConfigFile)
 		if err != nil {
 			log.PrintError(err.Error())
 			return
 		}
 
-		platform, err := aws.NewLambda(config)
+		p, err := jerm.New(cfg)
+		if err != nil {
+			log.PrintError(err.Error())
+			return
+		}
+
+		platform, err := aws.NewLambda(cfg)
 		if err != nil {
 			log.PrintError(err.Error())
 			return
