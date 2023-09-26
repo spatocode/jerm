@@ -204,7 +204,7 @@ func TestS3Upload(t *testing.T) {
 					)
 				},
 			},
-			want:    fmt.Errorf("operation error S3: PutObject, PutObjectError -> encountered error while uploading package. Aborting"),
+			want:    fmt.Errorf("operation error S3: PutObject, PutObjectError : encountered error while uploading package. Aborting"),
 			wantErr: true,
 		},
 		{
