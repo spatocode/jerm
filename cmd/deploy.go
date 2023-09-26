@@ -8,7 +8,6 @@ import (
 
 	"github.com/spatocode/jerm"
 	"github.com/spatocode/jerm/cloud/aws"
-	"github.com/spatocode/jerm/config"
 	"github.com/spatocode/jerm/internal/log"
 )
 
@@ -19,14 +18,10 @@ var deployCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		jerm.Verbose(cmd)
 
-		cfg, err := jerm.ReadConfig(jerm.DefaultConfigFile)
+		cfg, err := jerm.Configure(jerm.DefaultConfigFile)
 		if err != nil {
-			c := config.Config{}
-			cfg, err = c.PromptConfig()
-			if err != nil {
-				log.PrintError(err.Error())
-				return
-			}
+			log.PrintError(err.Error())
+			return
 		}
 
 		p, err := jerm.New(cfg)

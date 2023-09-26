@@ -20,7 +20,7 @@ import (
 type Config config.Config
 
 const (
-	Version           = "0.0.2"
+	Version           = "0.1.2"
 	DefaultConfigFile = "jerm.json"
 	ArchiveFile       = "jerm.zip"
 )
@@ -213,8 +213,26 @@ func (p *Project) archivePackage(archivePath, dir string) (int64, error) {
 	}
 
 	info, err := archive.Stat()
+	if err != nil {
+		return 0, err
+	}
 
 	return info.Size(), err
+}
+
+// Configure sets up Jerm using jerm.json configuration file.
+// If the configuration file is not found, it prompts the user for setup.
+func Configure(configFile string) (*config.Config, error) {
+	cfg, err := ReadConfig(configFile)
+	if err != nil {
+		c := &config.Config{}
+		c, err = c.PromptConfig()
+		if err != nil {
+			return nil, err
+		}
+		return c, err
+	}
+	return cfg, err
 }
 
 func Verbose(cmd *cobra.Command) {
