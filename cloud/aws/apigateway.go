@@ -291,7 +291,7 @@ func (a *ApiGateway) createMethods(functionArn *string, resourceId string, depth
 
 	method.Integration = &cfApigateway.Method_Integration{
 		CacheNamespace:        aws.String("none"),
-		Credentials:           &a.config.Lambda.Role,
+		Credentials:           &a.config.Platform.Role,
 		IntegrationHttpMethod: aws.String("POST"),
 		Type:                  aws.String("AWS_PROXY"),
 		PassthroughBehavior:   aws.String("NEVER"),

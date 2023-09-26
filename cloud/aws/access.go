@@ -36,7 +36,7 @@ func (i *IAM) checkPermissions() error {
 	if err != nil {
 		return err
 	}
-	i.config.Lambda.Role = *role.Arn
+	i.config.Platform.Role = *role.Arn
 
 	err = i.ensureIAMRolePolicy()
 	if err != nil {

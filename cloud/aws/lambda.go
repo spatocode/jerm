@@ -55,13 +55,13 @@ func NewLambda(cfg *config.Config) (*Lambda, error) {
 		timeout:           DefaultTimeout,
 	}
 
-	lambdaConfig := &config.Lambda{}
+	lambdaConfig := config.Platform{Name: config.Lambda}
 	err := lambdaConfig.Defaults()
 	if err != nil {
 		return nil, err
 	}
 
-	l.config.Lambda = lambdaConfig
+	l.config.Platform = lambdaConfig
 	awsConfig, err := l.getAwsConfig()
 	if err != nil {
 		return nil, err
@@ -111,8 +111,9 @@ func (l *Lambda) Build() (string, error) {
 
 	dir := filepath.Dir(handler)
 
-	if l.config.Lambda.Handler == "" {
-		err = l.CreateFunctionEntry(handler)
+	if l.config.Platform.Handler == "" {
+		err := l.CreateFunctionEntry(handler)
+		return dir, err
 	}
 	return dir, err
 }
@@ -441,8 +442,8 @@ func (l *Lambda) createLambdaFunction(zipPath string) (*string, error) {
 		},
 		FunctionName: aws.String(name),
 		Description:  aws.String(l.description),
-		Role:         &l.config.Lambda.Role,
-		Runtime:      lambdaTypes.Runtime(l.config.Lambda.Runtime),
+		Role:         &l.config.Platform.Role,
+		Runtime:      lambdaTypes.Runtime(l.config.Platform.Runtime),
 		Handler:      aws.String(l.functionHandler),
 		Timeout:      aws.Int32(l.timeout),
 		Publish:      true,

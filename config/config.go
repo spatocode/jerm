@@ -29,13 +29,13 @@ type Stage string
 
 // Config is the Jerm configuration details
 type Config struct {
-	Name   string  `json:"name"`
-	Stage  string  `json:"stage"`
-	Bucket string  `json:"bucket"`
-	Region string  `json:"region"`
-	Lambda *Lambda `json:"lambda"`
-	Dir    string  `json:"dir"`
-	Entry  string  `json:"entry"`
+	Name     string   `json:"name"`
+	Stage    string   `json:"stage"`
+	Bucket   string   `json:"bucket"`
+	Region   string   `json:"region"`
+	Platform Platform `json:"platform"`
+	Dir      string   `json:"dir"`
+	Entry    string   `json:"entry"`
 }
 
 func (c *Config) GetFunctionName() string {
