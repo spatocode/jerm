@@ -2,6 +2,7 @@ package aws
 
 const (
 	awsLambdaHandler = `
+import sys
 import json
 import io
 import logging
