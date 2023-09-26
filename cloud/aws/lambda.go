@@ -105,16 +105,16 @@ func (l *Lambda) Build() (string, error) {
 	}()
 
 	handler, err := r.Build(l.config)
-	dir := filepath.Dir(handler)
 	if err != nil {
 		return "", err
 	}
 
+	dir := filepath.Dir(handler)
+
 	if l.config.Lambda.Handler == "" {
-		err := l.CreateFunctionEntry(handler)
-		return dir, err
+		err = l.CreateFunctionEntry(handler)
 	}
-	return dir, nil
+	return dir, err
 }
 
 func (l *Lambda) Invoke(command string) error {
@@ -126,7 +126,7 @@ func (l *Lambda) Invoke(command string) error {
 func (l *Lambda) invokeLambdaFunction(payload []byte) error {
 	client := lambda.NewFromConfig(l.awsConfig)
 	out, err := client.Invoke(context.TODO(), &lambda.InvokeInput{
-		FunctionName:   &l.config.Name,
+		FunctionName:   aws.String(l.config.GetFunctionName()),
 		InvocationType: lambdaTypes.InvocationTypeRequestResponse,
 		LogType:        lambdaTypes.LogTypeTail,
 		Payload:        payload,
