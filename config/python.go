@@ -63,6 +63,9 @@ func (p *Python) getVersion() (string, error) {
 	pythonVersion, err := utils.GetShellCommandOutput("python", "-V")
 	if err != nil || strings.Contains(pythonVersion, " 2.") {
 		pythonVersion, err = utils.GetShellCommandOutput("python3", "-V")
+		if err != nil {
+			return "", err
+		}
 	}
 	s := strings.Split(pythonVersion, " ")
 	version := strings.TrimSpace(s[len(s)-1])
