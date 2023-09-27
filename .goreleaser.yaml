@@ -1,0 +1,20 @@
+project_name: jerm
+builds:
+  - main: ./cmd/jerm
+    env: [CGO_ENABLED=0]
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+nfpms:
+- maintainer: Ekene Izukanne <ekeneizukanne@gmail.com>
+  description: Seamlessly deploy serverless apps across all clouds.
+  homepage: https://github.com/spatocode/jerm
+  license: BSD-3-Clause license
+  formats:
+  - deb
+  - rpm
+  - apk
