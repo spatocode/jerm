@@ -1,37 +1,48 @@
 package config
 
 import (
-	"os"
+	"fmt"
 	"testing"
 
-	"github.com/spatocode/jerm/internal/utils"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestIgnoredFilesWhileCopying(t *testing.T) {
+func TestNewPythonRuntime(t *testing.T) {
 	assert := assert.New(t)
-	jermJson := "../assets/jerm.json"
-	jermIgnore := "../assets/.jermignore"
-
-	pr := NewPythonRuntime()
-	p := pr.(*Python)
-	err := p.copyNecessaryFilesToPackageDir("../assets/tests", "../assets", "../assets/tests/.jermignore")
-	testfile1Exists := utils.FileExists("../assets/testfile1")
-	testfile2Exists := utils.FileExists("../assets/testfile2")
-	jermJsonExists := utils.FileExists(jermJson)
-	jermIgnoreExists := utils.FileExists(jermIgnore)
-
-	assert.Nil(err)
-	assert.False(testfile1Exists)
-	assert.False(testfile2Exists)
-	assert.True(jermJsonExists)
-	assert.True(jermIgnoreExists)
-
-	cleanup([]string{jermJson, jermIgnore})
+	fakeOutput = "3.9.0"
+	r := NewPythonRuntime(fakeCommandExecutor{})
+	p := r.(*Python)
+	assert.Equal(RuntimePython, p.Name)
+	assert.Equal(fakeOutput, p.Version)
 }
 
-func cleanup(files []string) {
-	for _, file := range files {
-		os.Remove(file)
-	}
+func TestPythonGetVersion(t *testing.T) {
+	assert := assert.New(t)
+	fakeOutput = "3.9.0"
+	r := NewPythonRuntime(fakeCommandExecutor{})
+	p := r.(*Python)
+	v, err := p.getVersion()
+	assert.Nil(err)
+	assert.Equal(RuntimePython, p.Name)
+	assert.Equal(fakeOutput, v)
+}
+
+func TestPythonGetVirtualEnvironment(t *testing.T) {
+	assert := assert.New(t)
+	fakeOutput = "/usr/fake"
+	r := NewPythonRuntime(fakeCommandExecutor{})
+	p := r.(*Python)
+	venv, err := p.getVirtualEnvironment()
+	assert.Nil(err)
+	assert.Equal(fmt.Sprintf("%s/versions%s", fakeOutput, fakeOutput), venv)
+}
+
+func TestPythonLambdaRuntime(t *testing.T) {
+	assert := assert.New(t)
+	fakeOutput = "3.9.0"
+	r := NewPythonRuntime(fakeCommandExecutor{})
+	p := r.(*Python)
+	v, err := p.lambdaRuntime()
+	assert.Nil(err)
+	assert.Equal("python3.9", v)
 }
