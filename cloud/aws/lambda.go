@@ -35,7 +35,7 @@ const (
 type Lambda struct {
 	access            *IAM
 	storage           jerm.CloudStorage
-	logs              jerm.CloudMonitor
+	monitor           jerm.CloudMonitor
 	apigateway        *ApiGateway
 	functionHandler   string
 	description       string
@@ -69,7 +69,7 @@ func NewLambda(cfg *config.Config) (*Lambda, error) {
 	}
 	l.client = lambda.NewFromConfig(*awsConfig)
 
-	l.logs = NewCloudWatch(cfg, *awsConfig)
+	l.monitor = NewCloudWatch(cfg, *awsConfig)
 	l.storage = NewS3(cfg, *awsConfig)
 	l.access = NewIAM(cfg, *awsConfig)
 	l.apigateway = NewApiGateway(cfg, *awsConfig)
@@ -87,6 +87,10 @@ func NewLambda(cfg *config.Config) (*Lambda, error) {
 	}
 
 	return l, nil
+}
+
+func (l *Lambda) WithMonitor(monitor jerm.CloudMonitor) {
+	l.monitor = monitor
 }
 
 // Build builds the deployment package for lambda
@@ -165,7 +169,7 @@ func (l *Lambda) getAwsConfig() (*aws.Config, error) {
 
 // Logs shows AWS logs
 func (l *Lambda) Logs() {
-	l.logs.Monitor()
+	l.monitor.Watch()
 }
 
 func (l *Lambda) Deploy(zipPath string) (bool, error) {
@@ -328,7 +332,7 @@ func (l *Lambda) Undeploy() error {
 	}
 
 	l.deleteLambdaFunction()
-	l.logs.DeleteLog()
+	l.monitor.Clear()
 
 	return nil
 }

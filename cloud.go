@@ -8,8 +8,8 @@ type CloudStorage interface {
 }
 
 type CloudMonitor interface {
-	Monitor()
-	DeleteLog()
+	Watch()
+	Clear()
 }
 
 type CloudPlatform interface {

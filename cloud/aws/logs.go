@@ -30,8 +30,8 @@ func NewCloudWatch(config *config.Config, awsConfig aws.Config) *CloudWatch {
 	}
 }
 
-// monitor is an infinite loop that continously monitors AWS Cloudwatch log events
-func (c *CloudWatch) Monitor() {
+// Watch is an infinite loop that continously fetches AWS Cloudwatch log events
+func (c *CloudWatch) Watch() {
 	startTime := int64(time.Millisecond * 100000)
 	prevStart := startTime
 	for {
@@ -152,7 +152,8 @@ func (c *CloudWatch) deleteLogGroup(groupName string) {
 	})
 }
 
-func (c *CloudWatch) DeleteLog() {
+// Clear deletes AWS CloudWatch logs
+func (c *CloudWatch) Clear() {
 	groupName := fmt.Sprintf("/aws/lambda/%s", c.config.GetFunctionName())
 	c.deleteLogGroup(groupName)
 }
