@@ -57,25 +57,28 @@ type RuntimeInterface interface {
 
 // Base Runtime
 type Runtime struct {
+	utils.ShellCommand
 	Name    string
 	Version string
 }
 
 // NewRuntime instantiates a new runtime
 func NewRuntime() RuntimeInterface {
+	command := utils.Command()
 	r := &Runtime{}
 	switch {
 	case utils.FileExists("requirements.txt"):
-		return NewPythonRuntime()
+		return NewPythonRuntime(command)
 	case utils.FileExists("main.go"):
-		return NewGoRuntime()
+		return NewGoRuntime(command)
 	case utils.FileExists("package.json"):
-		return NewNodeRuntime()
+		return NewNodeRuntime(command)
 	case utils.FileExists("index.html"):
 		r.Name = RuntimeStatic
 	default:
 		r.Name = RuntimeUnknown
 	}
+	r.ShellCommand = command
 	return r
 }
 

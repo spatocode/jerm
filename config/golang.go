@@ -15,14 +15,12 @@ type Go struct {
 }
 
 // NewGoConfig instantiates a new Go runtime
-func NewGoRuntime() RuntimeInterface {
-	runtime := &Runtime{}
+func NewGoRuntime(cmd utils.ShellCommand) RuntimeInterface {
+	runtime := &Runtime{cmd, RuntimeGo, DefaultGoVersion}
 	g := &Go{runtime}
-	g.Name = RuntimeGo
 	version, err := g.getVersion()
 	if err != nil {
 		log.Debug(fmt.Sprintf("encountered an error while getting go version. Default to %s", DefaultGoVersion))
-		g.Version = DefaultGoVersion
 		return g
 	}
 	g.Version = version
@@ -32,7 +30,7 @@ func NewGoRuntime() RuntimeInterface {
 // Gets the go version
 func (g *Go) getVersion() (string, error) {
 	log.Debug("getting go version...")
-	goVersion, err := utils.GetShellCommandOutput("go", "version")
+	goVersion, err := g.RunCommand("go", "version")
 	if err != nil {
 		return "", err
 	}
@@ -47,13 +45,13 @@ func (g *Go) getVersion() (string, error) {
 // Build builds the go deployment package
 // It returns the executable path and the function name
 func (g *Go) Build(config *Config, functionContent string) (string, string, error) {
-	_, err := utils.GetShellCommandOutput("go", "mod", "tidy")
+	_, err := g.RunCommand("go", "mod", "tidy")
 	if err != nil {
 		return "", "", err
 	}
 
 	env := []string{"GOOS=linux", "GOARCH=amd64", "CGO_ENABLED=0"}
-	_, err = utils.GetShellCommandOutputWithEnv(env, "go", "build", "main.go")
+	_, err = g.RunCommandWithEnv(env, "go", "build", "main.go")
 	if err != nil {
 		return "", "", err
 	}

@@ -27,14 +27,12 @@ type Python struct {
 }
 
 // NewPythonConfig instantiates a new Python runtime
-func NewPythonRuntime() RuntimeInterface {
-	runtime := &Runtime{}
+func NewPythonRuntime(cmd utils.ShellCommand) RuntimeInterface {
+	runtime := &Runtime{cmd, RuntimePython, DefaultPythonVersion}
 	p := &Python{runtime}
-	p.Name = RuntimePython
 	version, err := p.getVersion()
 	if err != nil {
 		log.Debug(fmt.Sprintf("encountered an error while getting python version. Default to %s", DefaultPythonVersion))
-		p.Version = DefaultPythonVersion
 		return p
 	}
 	p.Version = version
@@ -60,9 +58,9 @@ func (p *Python) Entry() string {
 // Gets the python version
 func (p *Python) getVersion() (string, error) {
 	log.Debug("getting python version...")
-	pythonVersion, err := utils.GetShellCommandOutput("python", "-V")
+	pythonVersion, err := p.RunCommand("python", "-V")
 	if err != nil || strings.Contains(pythonVersion, " 2.") {
-		pythonVersion, err = utils.GetShellCommandOutput("python3", "-V")
+		pythonVersion, err = p.RunCommand("python3", "-V")
 		if err != nil {
 			return "", err
 		}
@@ -79,23 +77,20 @@ func (p *Python) getVirtualEnvironment() (string, error) {
 		return strings.TrimSpace(venv), nil
 	}
 
-	_, err := utils.GetShellCommandOutput("pyenv")
+	pyenvRoot, err := p.RunCommand("pyenv", "root")
 	if err != nil {
-		pyenvRoot, err := utils.GetShellCommandOutput("pyenv", "root")
-		if err != nil {
-			return "", err
-		}
-		pyenvRoot = strings.TrimSpace(pyenvRoot)
-
-		pyenvVersionName, err := utils.GetShellCommandOutput("pyenv", "version-name")
-		if err != nil {
-			return "", err
-		}
-		pyenvVersionName = strings.TrimSpace(pyenvVersionName)
-		venv = path.Join(pyenvRoot, "versions", pyenvVersionName)
-		return venv, nil
+		return "", err
 	}
-	return "", nil
+	pyenvRoot = strings.TrimSpace(pyenvRoot)
+
+	pyenvVersionName, err := p.RunCommand("pyenv", "version-name")
+	if err != nil {
+		return "", err
+	}
+	pyenvVersionName = strings.TrimSpace(pyenvVersionName)
+	venv = path.Join(pyenvRoot, "versions", pyenvVersionName)
+
+	return venv, nil
 }
 
 // Build builds the Python deployment package
