@@ -43,7 +43,7 @@ func (g *Go) getVersion() (string, error) {
 }
 
 // Build builds the go deployment package
-// It returns the executable path and the function name
+// It returns the executable path, the function name and error if any
 func (g *Go) Build(config *Config, functionContent string) (string, string, error) {
 	_, err := g.RunCommand("go", "mod", "tidy")
 	if err != nil {

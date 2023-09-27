@@ -45,6 +45,9 @@ var (
 
 type RuntimeInterface interface {
 	// Builds the deployment package for the underlying runtime
+	// It returns the package path, the function name and error if any.
+	// The package path can be an executable for runtimes that has
+	// standalone executable.
 	Build(*Config, string) (string, string, error)
 
 	// Entry is the directory where the cloud function handler resides.
