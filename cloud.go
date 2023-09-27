@@ -3,11 +3,13 @@ package jerm
 type CloudStorage interface {
 	Delete(string) error
 	Upload(string) error
+	Accessible() error
+	CreateBucket(config bool) error
 }
 
 type CloudMonitor interface {
-	Monitor()
-	DeleteLog()
+	Watch()
+	Clear()
 }
 
 type CloudPlatform interface {

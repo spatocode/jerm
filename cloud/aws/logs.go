@@ -18,20 +18,20 @@ import (
 
 // CloudWatch is the AWS Cloudwatch operations
 type CloudWatch struct {
-	awsConfig aws.Config
-	config    *config.Config
+	config *config.Config
+	client *cloudwatchlogs.Client
 }
 
 // NewCloudWatch creates a new AWS Cloudwatch
 func NewCloudWatch(config *config.Config, awsConfig aws.Config) *CloudWatch {
 	return &CloudWatch{
-		config:    config,
-		awsConfig: awsConfig,
+		config: config,
+		client: cloudwatchlogs.NewFromConfig(awsConfig),
 	}
 }
 
-// monitor is an infinite loop that continously monitors AWS Cloudwatch log events
-func (c *CloudWatch) Monitor() {
+// Watch is an infinite loop that continously fetches AWS Cloudwatch log events
+func (c *CloudWatch) Watch() {
 	startTime := int64(time.Millisecond * 100000)
 	prevStart := startTime
 	for {
@@ -109,8 +109,7 @@ func (c *CloudWatch) getLogs(startTime int64) ([]cwTypes.FilteredLogEvent, error
 
 // createLogStreams creates a log group with the specified name
 func (c *CloudWatch) createLogStreams(name string) error {
-	client := cloudwatchlogs.NewFromConfig(c.awsConfig)
-	_, err := client.CreateLogGroup(context.TODO(), &cloudwatchlogs.CreateLogGroupInput{
+	_, err := c.client.CreateLogGroup(context.TODO(), &cloudwatchlogs.CreateLogGroupInput{
 		LogGroupName: aws.String(name),
 	})
 	return err
@@ -118,7 +117,6 @@ func (c *CloudWatch) createLogStreams(name string) error {
 
 // filterLogEvents filters the necessary log events
 func (c *CloudWatch) filterLogEvents(logName string, streamNames []string, startTime int64, logEvents *cloudwatchlogs.FilterLogEventsOutput) (*cloudwatchlogs.FilterLogEventsOutput, error) {
-	client := cloudwatchlogs.NewFromConfig(c.awsConfig)
 	logEventsInput := &cloudwatchlogs.FilterLogEventsInput{
 		LogGroupName:   aws.String(logName),
 		LogStreamNames: streamNames,
@@ -130,14 +128,13 @@ func (c *CloudWatch) filterLogEvents(logName string, streamNames []string, start
 	if logEvents != nil && logEvents.NextToken != nil {
 		logEventsInput.NextToken = logEvents.NextToken
 	}
-	resp, err := client.FilterLogEvents(context.TODO(), logEventsInput)
+	resp, err := c.client.FilterLogEvents(context.TODO(), logEventsInput)
 	return resp, err
 }
 
 // getLogStreams fetches the list of log streams for the specified log group name
 func (c *CloudWatch) getLogStreams(logName string) ([]cwTypes.LogStream, error) {
-	client := cloudwatchlogs.NewFromConfig(c.awsConfig)
-	resp, err := client.DescribeLogStreams(context.TODO(), &cloudwatchlogs.DescribeLogStreamsInput{
+	resp, err := c.client.DescribeLogStreams(context.TODO(), &cloudwatchlogs.DescribeLogStreamsInput{
 		LogGroupName: aws.String(logName),
 		Descending:   aws.Bool(true),
 		OrderBy:      cwTypes.OrderByLastEventTime,
@@ -150,13 +147,13 @@ func (c *CloudWatch) getLogStreams(logName string) ([]cwTypes.LogStream, error) 
 
 // deleteLogGroup deletes a specified log group name
 func (c *CloudWatch) deleteLogGroup(groupName string) {
-	client := cloudwatchlogs.NewFromConfig(c.awsConfig)
-	client.DeleteLogGroup(context.TODO(), &cloudwatchlogs.DeleteLogGroupInput{
+	c.client.DeleteLogGroup(context.TODO(), &cloudwatchlogs.DeleteLogGroupInput{
 		LogGroupName: aws.String(groupName),
 	})
 }
 
-func (c *CloudWatch) DeleteLog() {
+// Clear deletes AWS CloudWatch logs
+func (c *CloudWatch) Clear() {
 	groupName := fmt.Sprintf("/aws/lambda/%s", c.config.GetFunctionName())
 	c.deleteLogGroup(groupName)
 }

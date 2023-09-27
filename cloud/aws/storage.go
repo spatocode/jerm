@@ -18,6 +18,7 @@ import (
 type S3 struct {
 	config    *config.Config
 	awsConfig aws.Config
+	client    *s3.Client
 }
 
 // NewS3 creates a new AWS S3 object
@@ -25,33 +26,14 @@ func NewS3(config *config.Config, awsConfig aws.Config) *S3 {
 	return &S3{
 		config:    config,
 		awsConfig: awsConfig,
+		client:    s3.NewFromConfig(awsConfig),
 	}
 }
 
 // upload a file to AWS S3 bucket
 func (s *S3) Upload(filePath string) error {
-	client := s3.NewFromConfig(s.awsConfig)
-	_, err := client.HeadBucket(context.TODO(), &s3.HeadBucketInput{
-		Bucket: aws.String(s.config.Bucket),
-	})
-	if err != nil {
-		var nfErr *s3Types.NotFound
-		if errors.As(err, &nfErr) {
-			err := s.createBucket(client, true)
-			if err != nil {
-				log.Debug(fmt.Sprintf("error on creating s3 bucket with config %t", true))
-				err := s.createBucket(client, false)
-				if err != nil {
-					return err
-				}
-			}
-		} else {
-			return err
-		}
-	}
-
 	f, err := os.Stat(filePath)
-	if f.Size() == 0 || err != nil {
+	if err != nil || f.Size() == 0 {
 		msg := "encountered issue with packaged file"
 		return errors.New(msg)
 	}
@@ -64,29 +46,38 @@ func (s *S3) Upload(filePath string) error {
 
 	fileName := filepath.Base(filePath)
 	log.Debug(fmt.Sprintf("uploading file %s...", fileName))
-	_, err = client.PutObject(context.TODO(), &s3.PutObjectInput{
+	_, err = s.client.PutObject(context.TODO(), &s3.PutObjectInput{
 		Bucket: aws.String(s.config.Bucket),
 		Key:    aws.String(fileName),
 		Body:   file,
 	})
 	if err != nil {
 		msg := "encountered error while uploading package. Aborting"
-		return errors.New(msg)
+		return fmt.Errorf("%s : %s", err.Error(), msg)
 	}
 	return nil
 }
 
-// delete a file from AWS S3 bucket
-func (s *S3) Delete(filePath string) error {
-	client := s3.NewFromConfig(s.awsConfig)
-	_, err := client.HeadBucket(context.TODO(), &s3.HeadBucketInput{
+func (s *S3) headBucket() error {
+	_, err := s.client.HeadBucket(context.TODO(), &s3.HeadBucketInput{
 		Bucket: aws.String(s.config.Bucket),
 	})
 	if err != nil {
-		return err
+		log.Debug(fmt.Sprintf("s3 bucket error %#v", err))
 	}
+	return err
+}
 
-	_, err = client.DeleteObject(context.TODO(), &s3.DeleteObjectInput{
+func (s *S3) Accessible() error {
+	log.Debug(fmt.Sprintf("checking s3 bucket %s...", s.config.Bucket))
+	err := s.headBucket()
+	return err
+}
+
+// delete a file from AWS S3 bucket
+func (s *S3) Delete(filePath string) error {
+	log.Debug(fmt.Sprintf("deleting s3 bucket object %s...", filePath))
+	_, err := s.client.DeleteObject(context.TODO(), &s3.DeleteObjectInput{
 		Bucket: aws.String(s.config.Bucket),
 		Key:    aws.String(filePath),
 	})
@@ -96,11 +87,11 @@ func (s *S3) Delete(filePath string) error {
 	return nil
 }
 
-// createBucket creates an AWS S3 bucket
-func (s *S3) createBucket(client *s3.Client, isConfig bool) error {
-	log.Debug(fmt.Sprintf("creating s3 bucket with config %t", isConfig))
+// CreateBucket creates an AWS S3 bucket
+func (s *S3) CreateBucket(isConfig bool) error {
+	log.Debug(fmt.Sprintf("creating s3 bucket with config %t...", isConfig))
 	if isConfig {
-		_, err := client.CreateBucket(context.TODO(), &s3.CreateBucketInput{
+		_, err := s.client.CreateBucket(context.TODO(), &s3.CreateBucketInput{
 			Bucket: aws.String(s.config.Bucket),
 			CreateBucketConfiguration: &s3Types.CreateBucketConfiguration{
 				LocationConstraint: s3Types.BucketLocationConstraint(s.awsConfig.Region),
@@ -108,7 +99,7 @@ func (s *S3) createBucket(client *s3.Client, isConfig bool) error {
 		})
 		return err
 	}
-	_, err := client.CreateBucket(context.TODO(), &s3.CreateBucketInput{
+	_, err := s.client.CreateBucket(context.TODO(), &s3.CreateBucketInput{
 		Bucket: aws.String(s.config.Bucket),
 	})
 	return err
