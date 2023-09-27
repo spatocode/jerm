@@ -3,6 +3,8 @@ package jerm
 type CloudStorage interface {
 	Delete(string) error
 	Upload(string) error
+	Accessible() error
+	CreateBucket(config bool) error
 }
 
 type CloudMonitor interface {

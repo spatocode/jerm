@@ -23,13 +23,23 @@ import (
 type ApiGateway struct {
 	s3         *S3
 	cfTemplate *cf.Template
-	awsConfig  aws.Config
+	cfClient   *cloudformation.Client
+	client     *apigateway.Client
+	monitor    *CloudWatch
 	config     *config.Config
+	awsConfig  aws.Config
 }
 
 func NewApiGateway(config *config.Config, awsConfig aws.Config) *ApiGateway {
 	s3 := NewS3(config, awsConfig)
-	return &ApiGateway{s3, nil, awsConfig, config}
+	return &ApiGateway{
+		s3:        s3,
+		awsConfig: awsConfig,
+		monitor:   NewCloudWatch(config, awsConfig),
+		cfClient:  cloudformation.NewFromConfig(awsConfig),
+		client:    apigateway.NewFromConfig(awsConfig),
+		config:    config,
+	}
 }
 
 func (a *ApiGateway) setup(functionArn *string) error {
@@ -72,8 +82,7 @@ func (a *ApiGateway) setup(functionArn *string) error {
 // deployAPIGateway deploys an AWS API gateway
 func (a *ApiGateway) deploy(apiId *string) (string, error) {
 	log.Debug("deploying API Gateway...")
-	apiGatewayClient := apigateway.NewFromConfig(a.awsConfig)
-	_, err := apiGatewayClient.CreateDeployment(context.TODO(), &apigateway.CreateDeploymentInput{
+	_, err := a.client.CreateDeployment(context.TODO(), &apigateway.CreateDeploymentInput{
 		StageName:        aws.String(a.config.Stage),
 		RestApiId:        apiId,
 		Description:      aws.String("Automatically created by Jerm"),
@@ -84,7 +93,7 @@ func (a *ApiGateway) deploy(apiId *string) (string, error) {
 		return "", errors.New(msg)
 	}
 
-	_, err = apiGatewayClient.UpdateStage(context.TODO(), &apigateway.UpdateStageInput{
+	_, err = a.client.UpdateStage(context.TODO(), &apigateway.UpdateStageInput{
 		RestApiId: apiId,
 		StageName: aws.String(a.config.Stage),
 		PatchOperations: []agTypes.PatchOperation{
@@ -125,8 +134,7 @@ func (a *ApiGateway) deploy(apiId *string) (string, error) {
 
 func (a *ApiGateway) getRestApis() ([]*string, error) {
 	var apiIds []*string
-	apiGatewayClient := apigateway.NewFromConfig(a.awsConfig)
-	resp, err := apiGatewayClient.GetRestApis(context.TODO(), &apigateway.GetRestApisInput{
+	resp, err := a.client.GetRestApis(context.TODO(), &apigateway.GetRestApisInput{
 		Limit: aws.Int32(500),
 	})
 	if err != nil {
@@ -142,8 +150,7 @@ func (a *ApiGateway) getRestApis() ([]*string, error) {
 }
 
 func (a *ApiGateway) getApiId() (*string, error) {
-	cloudformationClient := cloudformation.NewFromConfig(a.awsConfig)
-	resp, err := cloudformationClient.DescribeStackResource(context.TODO(), &cloudformation.DescribeStackResourceInput{
+	resp, err := a.cfClient.DescribeStackResource(context.TODO(), &cloudformation.DescribeStackResourceInput{
 		StackName:         aws.String(a.config.GetFunctionName()),
 		LogicalResourceId: aws.String("Api"),
 	})
@@ -182,8 +189,7 @@ func (a *ApiGateway) createCFStack() error {
 		url = fmt.Sprintf("https://s3-us-gov-west-1.amazonaws.com/%s/%s", a.config.Bucket, template)
 	}
 
-	client := cloudformation.NewFromConfig(a.awsConfig)
-	_, err = client.DescribeStacks(context.TODO(), &cloudformation.DescribeStacksInput{
+	_, err = a.cfClient.DescribeStacks(context.TODO(), &cloudformation.DescribeStacksInput{
 		StackName: aws.String(a.config.GetFunctionName()),
 	})
 	if err != nil {
@@ -194,7 +200,7 @@ func (a *ApiGateway) createCFStack() error {
 				Value: aws.String(a.config.GetFunctionName()),
 			},
 		}
-		_, err := client.CreateStack(context.TODO(), &cloudformation.CreateStackInput{
+		_, err := a.cfClient.CreateStack(context.TODO(), &cloudformation.CreateStackInput{
 			StackName:    aws.String(a.config.GetFunctionName()),
 			TemplateURL:  aws.String(url),
 			Tags:         tags,
@@ -204,7 +210,7 @@ func (a *ApiGateway) createCFStack() error {
 			return err
 		}
 	} else {
-		client.UpdateStack(context.TODO(), &cloudformation.UpdateStackInput{
+		a.cfClient.UpdateStack(context.TODO(), &cloudformation.UpdateStackInput{
 			StackName:    aws.String(a.config.GetFunctionName()),
 			TemplateURL:  aws.String(url),
 			Capabilities: make([]cfTypes.Capability, 0),
@@ -213,7 +219,7 @@ func (a *ApiGateway) createCFStack() error {
 
 	for {
 		time.Sleep(time.Second * 3)
-		resp, _ := client.DescribeStacks(context.TODO(), &cloudformation.DescribeStacksInput{
+		resp, _ := a.cfClient.DescribeStacks(context.TODO(), &cloudformation.DescribeStacksInput{
 			StackName: aws.String(a.config.GetFunctionName()),
 		})
 		if resp.Stacks == nil {
@@ -247,8 +253,7 @@ func (a *ApiGateway) createCFStack() error {
 }
 
 func (a *ApiGateway) deleteStack() error {
-	client := cloudformation.NewFromConfig(a.awsConfig)
-	resp, err := client.DescribeStacks(context.TODO(), &cloudformation.DescribeStacksInput{
+	resp, err := a.cfClient.DescribeStacks(context.TODO(), &cloudformation.DescribeStacksInput{
 		StackName: aws.String(a.config.GetFunctionName()),
 	})
 	if err != nil {
@@ -261,7 +266,7 @@ func (a *ApiGateway) deleteStack() error {
 	}
 	if tags["JermProject"] == a.config.GetFunctionName() {
 		log.Debug("deleting cloud formation stack...")
-		_, err := client.DeleteStack(context.TODO(), &cloudformation.DeleteStackInput{
+		_, err := a.cfClient.DeleteStack(context.TODO(), &cloudformation.DeleteStackInput{
 			StackName: aws.String(a.config.GetFunctionName()),
 		})
 		if err != nil {
@@ -307,18 +312,15 @@ func (a *ApiGateway) deleteLogs() error {
 		return err
 	}
 	for _, id := range apiIds {
-		client := apigateway.NewFromConfig(a.awsConfig)
-		resp, err := client.GetStages(context.TODO(), &apigateway.GetStagesInput{
+		resp, err := a.client.GetStages(context.TODO(), &apigateway.GetStagesInput{
 			RestApiId: id,
 		})
 		if err != nil {
 			return err
 		}
-
-		cw := NewCloudWatch(a.config, a.awsConfig)
 		for _, item := range resp.Item {
 			groupName := fmt.Sprintf("API-Gateway-Execution-Logs_%s/%s", *id, *item.StageName)
-			cw.deleteLogGroup(groupName)
+			a.monitor.deleteLogGroup(groupName)
 		}
 	}
 	return nil

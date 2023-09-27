@@ -17,6 +17,7 @@ import (
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
 	lambdaTypes "github.com/aws/aws-sdk-go-v2/service/lambda/types"
+	s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 
 	"github.com/spatocode/jerm"
 	"github.com/spatocode/jerm/config"
@@ -38,11 +39,11 @@ type Lambda struct {
 	apigateway        *ApiGateway
 	functionHandler   string
 	description       string
-	awsConfig         aws.Config
 	config            *config.Config
 	retry             int
 	maxWaiterDuration time.Duration
 	timeout           int32
+	client            *lambda.Client
 }
 
 // NewLambda instantiates a new AWS Lambda service
@@ -66,7 +67,7 @@ func NewLambda(cfg *config.Config) (*Lambda, error) {
 	if err != nil {
 		return nil, err
 	}
-	l.awsConfig = *awsConfig
+	l.client = lambda.NewFromConfig(*awsConfig)
 
 	l.logs = NewCloudWatch(cfg, *awsConfig)
 	l.storage = NewS3(cfg, *awsConfig)
@@ -125,8 +126,7 @@ func (l *Lambda) Invoke(command string) error {
 
 // invokeLambdaFunction invokes a lambda function with payload
 func (l *Lambda) invokeLambdaFunction(payload []byte) error {
-	client := lambda.NewFromConfig(l.awsConfig)
-	out, err := client.Invoke(context.TODO(), &lambda.InvokeInput{
+	out, err := l.client.Invoke(context.TODO(), &lambda.InvokeInput{
 		FunctionName:   aws.String(l.config.GetFunctionName()),
 		InvocationType: lambdaTypes.InvocationTypeRequestResponse,
 		LogType:        lambdaTypes.LogTypeTail,
@@ -178,6 +178,10 @@ func (l *Lambda) Deploy(zipPath string) (bool, error) {
 		return true, nil
 	}
 
+	if err = l.storage.Accessible(); err != nil {
+		return false, err
+	}
+
 	l.storage.Upload(zipPath)
 	functionArn, err := l.createLambdaFunction(zipPath)
 	if err != nil {
@@ -200,6 +204,10 @@ func (l *Lambda) Deploy(zipPath string) (bool, error) {
 		return false, err
 	}
 
+	if err = l.storage.Accessible(); err != nil {
+		return false, err
+	}
+
 	err = l.storage.Delete(zipPath)
 	if err != nil {
 		return false, err
@@ -209,7 +217,7 @@ func (l *Lambda) Deploy(zipPath string) (bool, error) {
 }
 
 func (l *Lambda) waitTillFunctionBecomesActive() error {
-	client := lambda.NewFunctionActiveV2Waiter(lambda.NewFromConfig(l.awsConfig))
+	client := lambda.NewFunctionActiveV2Waiter(l.client)
 	err := client.Wait(context.TODO(), &lambda.GetFunctionInput{
 		FunctionName: aws.String(l.config.GetFunctionName()),
 	}, time.Second*l.maxWaiterDuration)
@@ -220,7 +228,7 @@ func (l *Lambda) waitTillFunctionBecomesActive() error {
 }
 
 func (l *Lambda) waitTillFunctionBecomesUpdated() {
-	client := lambda.NewFunctionUpdatedV2Waiter(lambda.NewFromConfig(l.awsConfig))
+	client := lambda.NewFunctionUpdatedV2Waiter(l.client)
 	err := client.Wait(context.TODO(), &lambda.GetFunctionInput{
 		FunctionName: aws.String(l.config.GetFunctionName()),
 	}, time.Second*l.maxWaiterDuration)
@@ -234,6 +242,22 @@ func (l *Lambda) scheduleEvents() {
 }
 
 func (l *Lambda) Update(zipPath string) error {
+	if err := l.storage.Accessible(); err != nil {
+		var nfErr *s3Types.NotFound
+		if errors.As(err, &nfErr) {
+			err = l.storage.CreateBucket(true)
+			if err != nil {
+				log.Debug(fmt.Sprintf("error on creating s3 bucket with config %t", true))
+				err := l.storage.CreateBucket(false)
+				if err != nil {
+					return err
+				}
+			}
+		} else {
+			return err
+		}
+	}
+
 	err := l.storage.Upload(zipPath)
 	if err != nil {
 		return err
@@ -312,8 +336,7 @@ func (l *Lambda) Undeploy() error {
 // deleteLambdaFunction deletes a Lambda function
 func (l *Lambda) deleteLambdaFunction() {
 	log.Debug("deleting lambda function...")
-	client := lambda.NewFromConfig(l.awsConfig)
-	client.DeleteFunction(context.TODO(), &lambda.DeleteFunctionInput{
+	l.client.DeleteFunction(context.TODO(), &lambda.DeleteFunctionInput{
 		FunctionName: aws.String(l.config.GetFunctionName()),
 	})
 }
@@ -385,8 +408,7 @@ func (l *Lambda) Rollback(steps int) error {
 
 func (l *Lambda) listLambdaVersions() ([]lambdaTypes.FunctionConfiguration, error) {
 	log.Debug("list lambda versions by function...")
-	client := lambda.NewFromConfig(l.awsConfig)
-	response, err := client.ListVersionsByFunction(context.TODO(), &lambda.ListVersionsByFunctionInput{
+	response, err := l.client.ListVersionsByFunction(context.TODO(), &lambda.ListVersionsByFunctionInput{
 		FunctionName: aws.String(l.config.GetFunctionName()),
 	})
 	if err != nil {
@@ -433,9 +455,8 @@ func (l *Lambda) createLambdaFunction(zipPath string) (*string, error) {
 		return function.Configuration.FunctionArn, nil
 	}
 	fileName := filepath.Base(zipPath)
-	client := lambda.NewFromConfig(l.awsConfig)
 	log.Debug("creating lambda function...")
-	resp, err := client.CreateFunction(context.TODO(), &lambda.CreateFunctionInput{
+	resp, err := l.client.CreateFunction(context.TODO(), &lambda.CreateFunctionInput{
 		Code: &lambdaTypes.FunctionCode{
 			S3Bucket: aws.String(l.config.Bucket),
 			S3Key:    aws.String(fileName),
@@ -456,8 +477,7 @@ func (l *Lambda) createLambdaFunction(zipPath string) (*string, error) {
 
 func (l *Lambda) getLambdaFunction(name string) (*lambda.GetFunctionOutput, error) {
 	log.Debug(fmt.Sprintf("getting lambda functon %s...", name))
-	client := lambda.NewFromConfig(l.awsConfig)
-	resp, err := client.GetFunction(context.TODO(), &lambda.GetFunctionInput{
+	resp, err := l.client.GetFunction(context.TODO(), &lambda.GetFunctionInput{
 		FunctionName: aws.String(name),
 	})
 	if err != nil {
@@ -468,8 +488,7 @@ func (l *Lambda) getLambdaFunction(name string) (*lambda.GetFunctionOutput, erro
 
 func (l *Lambda) updateLambdaFunction(content []byte) (*string, error) {
 	log.Debug("updating lambda function code...")
-	client := lambda.NewFromConfig(l.awsConfig)
-	resp, err := client.UpdateFunctionCode(context.TODO(), &lambda.UpdateFunctionCodeInput{
+	resp, err := l.client.UpdateFunctionCode(context.TODO(), &lambda.UpdateFunctionCodeInput{
 		FunctionName: aws.String(l.config.GetFunctionName()),
 		ZipFile:      content,
 		Publish:      true,
