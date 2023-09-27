@@ -44,7 +44,7 @@ func (g *Go) getVersion() (string, error) {
 	return "", errors.New("encountered error on go version")
 }
 
-// Builds the go deployment package
+// Build builds the go deployment package
 // It returns the executable path and the function name
 func (g *Go) Build(config *Config, functionContent string) (string, string, error) {
 	_, err := utils.GetShellCommandOutput("go", "mod", "tidy")

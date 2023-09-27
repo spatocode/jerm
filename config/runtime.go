@@ -51,7 +51,7 @@ type RuntimeInterface interface {
 	// The directory can be a file.
 	Entry() string
 
-	// lambdaRuntime is the name of runtime as specified by AWS Lambda
+	// lambdaRuntime returns the name of runtime as specified by AWS Lambda
 	lambdaRuntime() (string, error)
 }
 
@@ -79,6 +79,7 @@ func NewRuntime() RuntimeInterface {
 	return r
 }
 
+// Build builds the project for deployment
 func (r *Runtime) Build(config *Config, functionContent string) (string, string, error) {
 	tempDir, err := os.MkdirTemp(os.TempDir(), "jerm-package")
 	if err != nil {

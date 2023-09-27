@@ -95,7 +95,8 @@ func (p *Python) getVirtualEnvironment() (string, error) {
 	return "", nil
 }
 
-// Builds the Python deployment package
+// Build builds the Python deployment package
+// It returns the package path and the function name
 func (p *Python) Build(config *Config, functionContent string) (string, string, error) {
 	function := config.Platform.Handler
 	tempDir, err := os.MkdirTemp(os.TempDir(), "jerm-package")
