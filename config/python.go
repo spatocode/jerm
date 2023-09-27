@@ -65,7 +65,7 @@ func (p *Python) getVersion() (string, error) {
 		pythonVersion, err = utils.GetShellCommandOutput("python3", "-V")
 	}
 	s := strings.Split(pythonVersion, " ")
-	version := s[len(s)-1]
+	version := strings.TrimSpace(s[len(s)-1])
 	return version, err
 }
 

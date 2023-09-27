@@ -35,7 +35,7 @@ func (n *Node) getVersion() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	nodeVersion = nodeVersion[1:]
+	nodeVersion = strings.TrimSpace(nodeVersion[1:])
 	return nodeVersion, nil
 }
 

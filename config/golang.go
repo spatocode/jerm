@@ -39,7 +39,7 @@ func (g *Go) getVersion() (string, error) {
 	s := strings.Split(goVersion, " ")
 	if len(s) > 1 {
 		version := strings.Split(s[2], "go")
-		return version[1], nil
+		return strings.TrimSpace(version[1]), nil
 	}
 	return "", errors.New("encountered error on go version")
 }
