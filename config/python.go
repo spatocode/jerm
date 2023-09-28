@@ -140,7 +140,7 @@ func (p *Python) Build(config *Config, functionContent string) (string, string, 
 
 	log.Debug(fmt.Sprintf("built Python deployment package at %s", tempDir))
 
-	if function == "" {
+	if function == "" && p.IsDjango() { // for now it works for Django projects only
 		function, err = p.createFunctionEntry(config, functionContent, handlerFilepath)
 		if err != nil {
 			return "", "", err
