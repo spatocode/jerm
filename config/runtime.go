@@ -46,8 +46,8 @@ var (
 type RuntimeInterface interface {
 	// Builds the deployment package for the underlying runtime
 	// It returns the package path, the function name and error if any.
-	// The package path can be an executable for runtimes that has
-	// standalone executable.
+	// The package path can be an executable for runtimes that compiles
+	// to standalone executable.
 	Build(*Config, string) (string, string, error)
 
 	// Entry is the directory where the cloud function handler resides.
@@ -92,7 +92,7 @@ func (r *Runtime) Build(config *Config, functionContent string) (string, string,
 		return "", "", err
 	}
 
-	err = r.copyNecessaryFilesToPackageDir(config.Dir, tempDir, jermIgnoreFile)
+	err = r.copyNecessaryFilesToPackageDir(config.Dir, tempDir, JermIgnoreFile)
 	if err != nil {
 		return "", "", err
 	}
