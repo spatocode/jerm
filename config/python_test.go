@@ -9,22 +9,22 @@ import (
 
 func TestNewPythonRuntime(t *testing.T) {
 	assert := assert.New(t)
-	fakeOutput = "3.9.0"
+	fakeOutput = "Python 3.9.0"
 	r := NewPythonRuntime(fakeCommandExecutor{})
 	p := r.(*Python)
 	assert.Equal(RuntimePython, p.Name)
-	assert.Equal(fakeOutput, p.Version)
+	assert.Equal("3.9.0", p.Version)
 }
 
 func TestPythonGetVersion(t *testing.T) {
 	assert := assert.New(t)
-	fakeOutput = "3.9.0"
+	fakeOutput = "Python 3.9.0"
 	r := NewPythonRuntime(fakeCommandExecutor{})
 	p := r.(*Python)
 	v, err := p.getVersion()
 	assert.Nil(err)
 	assert.Equal(RuntimePython, p.Name)
-	assert.Equal(fakeOutput, v)
+	assert.Equal("3.9.0", v)
 }
 
 func TestPythonGetVirtualEnvironment(t *testing.T) {
@@ -39,7 +39,7 @@ func TestPythonGetVirtualEnvironment(t *testing.T) {
 
 func TestPythonLambdaRuntime(t *testing.T) {
 	assert := assert.New(t)
-	fakeOutput = "3.9.0"
+	fakeOutput = "Python 3.9.0"
 	r := NewPythonRuntime(fakeCommandExecutor{})
 	p := r.(*Python)
 	v, err := p.lambdaRuntime()

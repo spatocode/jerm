@@ -12,7 +12,7 @@ func TestNewNodeRuntime(t *testing.T) {
 	r := NewNodeRuntime(fakeCommandExecutor{})
 	n := r.(*Node)
 	assert.Equal(RuntimeNode, n.Name)
-	assert.Equal(fakeOutput[1:], n.Version)
+	assert.Equal("13.2.0", n.Version)
 }
 
 func TestNodeGetVersion(t *testing.T) {
@@ -23,7 +23,7 @@ func TestNodeGetVersion(t *testing.T) {
 	v, err := n.getVersion()
 	assert.Nil(err)
 	assert.Equal(RuntimeNode, n.Name)
-	assert.Equal(fakeOutput[1:], v)
+	assert.Equal("13.2.0", v)
 }
 
 func TestNodeLambdaRuntime(t *testing.T) {
