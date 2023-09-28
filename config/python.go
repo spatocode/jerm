@@ -147,7 +147,7 @@ func (p *Python) Build(config *Config) (string, string, error) {
 	log.Debug(fmt.Sprintf("built Python deployment package at %s", tempDir))
 
 	if function == "" && p.IsDjango() { // for now it works for Django projects only
-		function, err = p.createFunctionEntry(config, handlerFilepath)
+		function, err = p.createFunctionHandler(config, handlerFilepath)
 		if err != nil {
 			return "", "", err
 		}
@@ -156,8 +156,8 @@ func (p *Python) Build(config *Config) (string, string, error) {
 	return tempDir, function, err
 }
 
-// createFunctionEntry creates a serverless function handler file
-func (p *Python) createFunctionEntry(config *Config, file string) (string, error) {
+// createFunctionHandler creates a serverless function handler file
+func (p *Python) createFunctionHandler(config *Config, file string) (string, error) {
 	log.Debug("creating lambda handler...")
 	f, err := os.Create(file)
 	if err != nil {

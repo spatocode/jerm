@@ -55,13 +55,15 @@ func NewLambda(cfg *config.Config) (*Lambda, error) {
 		timeout:           DefaultTimeout,
 	}
 
-	lambdaConfig := config.Platform{Name: config.Lambda}
-	err := lambdaConfig.Defaults()
-	if err != nil {
-		return nil, err
+	if l.config.Platform.Name == "" {
+		lambdaConfig := config.Platform{Name: config.Lambda}
+		err := lambdaConfig.Defaults()
+		if err != nil {
+			return nil, err
+		}
+		l.config.Platform = lambdaConfig
 	}
 
-	l.config.Platform = lambdaConfig
 	awsConfig, err := l.getAwsConfig()
 	if err != nil {
 		return nil, err

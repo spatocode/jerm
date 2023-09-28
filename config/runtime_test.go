@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/spatocode/jerm/internal/utils"
@@ -61,11 +62,26 @@ func TestRuntimeBuild(t *testing.T) {
 
 	assert.Nil(err)
 	assert.Contains(pkgDir, "jerm-package")
-	assert.Equal(DefaultServerlessFunction, f)
+	assert.Equal("", f)
 	assert.True(utils.FileExists(testfile1))
 	assert.True(utils.FileExists(testfile2))
 	assert.True(utils.FileExists(jermJson))
 	assert.True(utils.FileExists(jermIgnore))
+}
+
+func TestRuntimcCreateFunctionHandler(t *testing.T) {
+	assert := assert.New(t)
+
+	cfg := &Config{Name: "test", Stage: "env", Dir: "../assets/tests"}
+	ri := NewRuntime()
+	r := ri.(*Runtime)
+
+	handlerFile := filepath.Join("../assets/tests", "index.js")
+	handler, err := r.createFunctionHandler(cfg, handlerFile)
+
+	assert.Nil(err)
+	assert.Equal("index.handler", handler)
+	helperCleanup(t, []string{handlerFile})
 }
 
 func TestNewRuntime(t *testing.T) {

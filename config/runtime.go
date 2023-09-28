@@ -90,6 +90,7 @@ func NewRuntime() RuntimeInterface {
 
 // Build builds the project for deployment
 func (r *Runtime) Build(config *Config) (string, string, error) {
+	function := config.Platform.Handler
 	tempDir, err := os.MkdirTemp(os.TempDir(), "jerm-package")
 	if err != nil {
 		return "", "", err
@@ -100,19 +101,19 @@ func (r *Runtime) Build(config *Config) (string, string, error) {
 		return "", "", err
 	}
 
-	if r.Name == RuntimeStatic {
+	if r.Name == RuntimeStatic && function == "" {
 		handlerFilepath := filepath.Join(tempDir, "index.js")
-		_, err := r.createFunctionEntry(config, handlerFilepath)
+		function, err = r.createFunctionHandler(config, handlerFilepath)
 		if err != nil {
 			return "", "", err
 		}
 	}
 
-	return tempDir, DefaultServerlessFunction, nil
+	return tempDir, function, nil
 }
 
-// createFunctionEntry creates a serverless function handler file
-func (r *Runtime) createFunctionEntry(config *Config, file string) (string, error) {
+// createFunctionHandler creates a serverless function handler file
+func (r *Runtime) createFunctionHandler(config *Config, file string) (string, error) {
 	log.Debug("creating lambda handler...")
 	f, err := os.Create(file)
 	if err != nil {
@@ -124,7 +125,8 @@ func (r *Runtime) createFunctionEntry(config *Config, file string) (string, erro
 	if err != nil {
 		return "", err
 	}
-	return DefaultServerlessFunction, nil
+	filename := strings.Split(filepath.Base(f.Name()), ".")[0]
+	return fmt.Sprintf("%s.%s", filename, DefaultServerlessFunction), nil
 }
 
 // Copies files from src to dest ignoring file names listed in ignoreFile
