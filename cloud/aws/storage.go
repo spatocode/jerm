@@ -62,9 +62,6 @@ func (s *S3) headBucket() error {
 	_, err := s.client.HeadBucket(context.TODO(), &s3.HeadBucketInput{
 		Bucket: aws.String(s.config.Bucket),
 	})
-	if err != nil {
-		log.Debug(fmt.Sprintf("s3 bucket error %#v", err))
-	}
 	return err
 }
 
