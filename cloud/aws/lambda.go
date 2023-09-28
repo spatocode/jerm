@@ -108,7 +108,7 @@ func (l *Lambda) Build() (string, error) {
 		}
 	}()
 
-	packageDir, function, err := r.Build(l.config, awsLambdaHandler)
+	packageDir, function, err := r.Build(l.config)
 	if err != nil {
 		return "", err
 	}

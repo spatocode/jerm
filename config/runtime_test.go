@@ -43,7 +43,7 @@ func TestIgnoredFilesWhileCopying(t *testing.T) {
 	assert.True(jermJsonExists)
 	assert.True(jermIgnoreExists)
 
-	helperCleanup(t,[]string{jermJson, jermIgnore})
+	helperCleanup(t, []string{jermJson, jermIgnore})
 }
 
 func TestRuntimeBuild(t *testing.T) {
@@ -52,7 +52,7 @@ func TestRuntimeBuild(t *testing.T) {
 	cfg := &Config{Name: "test", Stage: "env", Dir: "../assets/tests"}
 	ri := NewRuntime()
 	r := ri.(*Runtime)
-	pkgDir, f, err := r.Build(cfg, "")
+	pkgDir, f, err := r.Build(cfg)
 
 	testfile1 := fmt.Sprintf("%s/testfile1", pkgDir)
 	testfile2 := fmt.Sprintf("%s/testfile2", pkgDir)
@@ -66,8 +66,6 @@ func TestRuntimeBuild(t *testing.T) {
 	assert.True(utils.FileExists(testfile2))
 	assert.True(utils.FileExists(jermJson))
 	assert.True(utils.FileExists(jermIgnore))
-
-	helperCleanup(t, []string{pkgDir})
 }
 
 func TestNewRuntime(t *testing.T) {

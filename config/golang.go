@@ -16,7 +16,7 @@ type Go struct {
 
 // NewGoConfig instantiates a new Go runtime
 func NewGoRuntime(cmd utils.ShellCommand) RuntimeInterface {
-	runtime := &Runtime{cmd, RuntimeGo, DefaultGoVersion}
+	runtime := &Runtime{cmd, RuntimeGo, DefaultGoVersion, ""}
 	g := &Go{runtime}
 	version, err := g.getVersion()
 	if err != nil {
@@ -44,7 +44,7 @@ func (g *Go) getVersion() (string, error) {
 
 // Build builds the go deployment package
 // It returns the executable path, the function name and error if any
-func (g *Go) Build(config *Config, functionContent string) (string, string, error) {
+func (g *Go) Build(config *Config) (string, string, error) {
 	_, err := g.RunCommand("go", "mod", "tidy")
 	if err != nil {
 		return "", "", err

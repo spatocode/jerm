@@ -15,7 +15,7 @@ type Node struct {
 
 // NewNodeConfig instantiates a new NodeJS runtime
 func NewNodeRuntime(cmd utils.ShellCommand) RuntimeInterface {
-	runtime := &Runtime{cmd, RuntimeNode, DefaultNodeVersion}
+	runtime := &Runtime{cmd, RuntimeNode, DefaultNodeVersion, ""}
 	n := &Node{runtime}
 	version, err := n.getVersion()
 	if err != nil {

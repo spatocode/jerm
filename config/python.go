@@ -14,6 +14,7 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
+	"github.com/spatocode/jerm/config/handlers"
 	"github.com/spatocode/jerm/internal/log"
 	"github.com/spatocode/jerm/internal/utils"
 )
@@ -28,7 +29,12 @@ type Python struct {
 
 // NewPythonConfig instantiates a new Python runtime
 func NewPythonRuntime(cmd utils.ShellCommand) RuntimeInterface {
-	runtime := &Runtime{cmd, RuntimePython, DefaultPythonVersion}
+	runtime := &Runtime{
+		cmd,
+		RuntimePython,
+		DefaultPythonVersion,
+		handlers.AwsLambdaHandlerDjango,
+	}
 	p := &Python{runtime}
 	version, err := p.getVersion()
 	if err != nil {
@@ -95,7 +101,7 @@ func (p *Python) getVirtualEnvironment() (string, error) {
 
 // Build builds the Python deployment package
 // It returns the package path, the function name and error if any
-func (p *Python) Build(config *Config, functionContent string) (string, string, error) {
+func (p *Python) Build(config *Config) (string, string, error) {
 	function := config.Platform.Handler
 	tempDir, err := os.MkdirTemp(os.TempDir(), "jerm-package")
 	if err != nil {
@@ -141,7 +147,7 @@ func (p *Python) Build(config *Config, functionContent string) (string, string, 
 	log.Debug(fmt.Sprintf("built Python deployment package at %s", tempDir))
 
 	if function == "" && p.IsDjango() { // for now it works for Django projects only
-		function, err = p.createFunctionEntry(config, functionContent, handlerFilepath)
+		function, err = p.createFunctionEntry(config, handlerFilepath)
 		if err != nil {
 			return "", "", err
 		}
@@ -151,7 +157,7 @@ func (p *Python) Build(config *Config, functionContent string) (string, string, 
 }
 
 // createFunctionEntry creates a serverless function handler file
-func (p *Python) createFunctionEntry(config *Config, functionContent, file string) (string, error) {
+func (p *Python) createFunctionEntry(config *Config, file string) (string, error) {
 	log.Debug("creating lambda handler...")
 	f, err := os.Create(file)
 	if err != nil {
@@ -159,7 +165,7 @@ func (p *Python) createFunctionEntry(config *Config, functionContent, file strin
 	}
 	defer f.Close()
 
-	handler := strings.ReplaceAll(functionContent, ".wsgi", config.Entry+".wsgi")
+	handler := strings.ReplaceAll(p.handlerTemplate, ".wsgi", config.Entry+".wsgi")
 	_, err = f.Write([]byte(handler))
 	if err != nil {
 		return "", err

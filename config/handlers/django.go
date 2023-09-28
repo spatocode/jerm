@@ -1,7 +1,7 @@
-package aws
+package handlers
 
 const (
-	awsLambdaHandler = `
+	AwsLambdaHandlerDjango = `
 import sys
 import json
 import io

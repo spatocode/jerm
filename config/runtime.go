@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/otiai10/copy"
+	"github.com/spatocode/jerm/config/handlers"
 	"github.com/spatocode/jerm/internal/log"
 	"github.com/spatocode/jerm/internal/utils"
 )
@@ -48,7 +49,7 @@ type RuntimeInterface interface {
 	// It returns the package path, the function name and error if any.
 	// The package path can be an executable for runtimes that compiles
 	// to standalone executable.
-	Build(*Config, string) (string, string, error)
+	Build(*Config) (string, string, error)
 
 	// Entry is the directory where the cloud function handler resides.
 	// The directory can be a file.
@@ -61,8 +62,9 @@ type RuntimeInterface interface {
 // Base Runtime
 type Runtime struct {
 	utils.ShellCommand
-	Name    string
-	Version string
+	Name            string
+	Version         string
+	handlerTemplate string
 }
 
 // NewRuntime instantiates a new runtime
@@ -78,6 +80,7 @@ func NewRuntime() RuntimeInterface {
 		return NewNodeRuntime(command)
 	case utils.FileExists("index.html"):
 		r.Name = RuntimeStatic
+		r.handlerTemplate = handlers.AwsLambdaHandlerStaticPage
 	default:
 		r.Name = RuntimeUnknown
 	}
@@ -86,7 +89,7 @@ func NewRuntime() RuntimeInterface {
 }
 
 // Build builds the project for deployment
-func (r *Runtime) Build(config *Config, functionContent string) (string, string, error) {
+func (r *Runtime) Build(config *Config) (string, string, error) {
 	tempDir, err := os.MkdirTemp(os.TempDir(), "jerm-package")
 	if err != nil {
 		return "", "", err
@@ -97,7 +100,31 @@ func (r *Runtime) Build(config *Config, functionContent string) (string, string,
 		return "", "", err
 	}
 
+	if r.Name == RuntimeStatic {
+		handlerFilepath := filepath.Join(tempDir, "index.js")
+		_, err := r.createFunctionEntry(config, handlerFilepath)
+		if err != nil {
+			return "", "", err
+		}
+	}
+
 	return tempDir, DefaultServerlessFunction, nil
+}
+
+// createFunctionEntry creates a serverless function handler file
+func (r *Runtime) createFunctionEntry(config *Config, file string) (string, error) {
+	log.Debug("creating lambda handler...")
+	f, err := os.Create(file)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	_, err = f.Write([]byte(r.handlerTemplate))
+	if err != nil {
+		return "", err
+	}
+	return DefaultServerlessFunction, nil
 }
 
 // Copies files from src to dest ignoring file names listed in ignoreFile

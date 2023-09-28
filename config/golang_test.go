@@ -41,7 +41,7 @@ func TestGoBuild(t *testing.T) {
 	fakeOutput = "go version go1.21.0 linux/amd64"
 	r := NewGoRuntime(fakeCommandExecutor{})
 	cfg := &Config{Name: "test", Stage: "env"}
-	p, f, err := r.Build(cfg, "")
+	p, f, err := r.Build(cfg)
 	assert.Nil(err)
 	assert.Equal("main", p)
 	assert.Equal("main", f)
