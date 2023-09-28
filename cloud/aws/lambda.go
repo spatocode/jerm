@@ -182,8 +182,20 @@ func (l *Lambda) Deploy(zipPath string) (bool, error) {
 		return true, nil
 	}
 
-	if err = l.storage.Accessible(); err != nil {
-		return false, err
+	if err := l.storage.Accessible(); err != nil {
+		var nfErr *s3Types.NotFound
+		if errors.As(err, &nfErr) {
+			err = l.storage.CreateBucket(true)
+			if err != nil {
+				log.Debug(fmt.Sprintf("error on creating s3 bucket with config %t", true))
+				err := l.storage.CreateBucket(false)
+				if err != nil {
+					return false, err
+				}
+			}
+		} else {
+			return false, err
+		}
 	}
 
 	l.storage.Upload(zipPath)
