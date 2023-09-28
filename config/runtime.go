@@ -92,7 +92,7 @@ func (r *Runtime) Build(config *Config, functionContent string) (string, string,
 		return "", "", err
 	}
 
-	err = r.copyNecessaryFilesToPackageDir(config.Dir, tempDir, JermIgnoreFile)
+	err = r.copyNecessaryFilesToPackageDir(config.Dir, tempDir, jermIgnoreFile)
 	if err != nil {
 		return "", "", err
 	}
