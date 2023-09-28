@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"testing"
 
@@ -42,11 +43,81 @@ func TestIgnoredFilesWhileCopying(t *testing.T) {
 	assert.True(jermJsonExists)
 	assert.True(jermIgnoreExists)
 
-	cleanup([]string{jermJson, jermIgnore})
+	helperCleanup(t,[]string{jermJson, jermIgnore})
 }
 
-func cleanup(files []string) {
+func TestRuntimeBuild(t *testing.T) {
+	assert := assert.New(t)
+
+	cfg := &Config{Name: "test", Stage: "env", Dir: "../assets/tests"}
+	ri := NewRuntime()
+	r := ri.(*Runtime)
+	pkgDir, f, err := r.Build(cfg, "")
+
+	testfile1 := fmt.Sprintf("%s/testfile1", pkgDir)
+	testfile2 := fmt.Sprintf("%s/testfile2", pkgDir)
+	jermIgnore := fmt.Sprintf("%s/.jermignore", pkgDir)
+	jermJson := fmt.Sprintf("%s/jerm.json", pkgDir)
+
+	assert.Nil(err)
+	assert.Contains(pkgDir, "jerm-package")
+	assert.Equal(DefaultServerlessFunction, f)
+	assert.True(utils.FileExists(testfile1))
+	assert.True(utils.FileExists(testfile2))
+	assert.True(utils.FileExists(jermJson))
+	assert.True(utils.FileExists(jermIgnore))
+
+	helperCleanup(t, []string{pkgDir})
+}
+
+func TestNewRuntime(t *testing.T) {
+	assert := assert.New(t)
+	requirementsTxt := "requirements.txt"
+	mainGo := "main.go"
+	indexHtml := "index.html"
+	packageJson := "package.json"
+
+	ri := NewRuntime()
+	r := ri.(*Runtime)
+	assert.Equal(RuntimeUnknown, r.Name)
+
+	helperCreateFile(t, requirementsTxt)
+	ri = NewRuntime()
+	p := ri.(*Python)
+	assert.Equal(RuntimePython, p.Name)
+	helperCleanup(t, []string{requirementsTxt})
+
+	helperCreateFile(t, packageJson)
+	ri = NewRuntime()
+	n := ri.(*Node)
+	assert.Equal(RuntimeNode, n.Name)
+	helperCleanup(t, []string{packageJson})
+
+	helperCreateFile(t, mainGo)
+	ri = NewRuntime()
+	g := ri.(*Go)
+	assert.Equal(RuntimeGo, g.Name)
+	helperCleanup(t, []string{mainGo})
+
+	helperCreateFile(t, indexHtml)
+	ri = NewRuntime()
+	r = ri.(*Runtime)
+	assert.Equal(RuntimeStatic, r.Name)
+	helperCleanup(t, []string{indexHtml})
+}
+
+func helperCleanup(t *testing.T, files []string) {
 	for _, file := range files {
-		os.Remove(file)
+		err := os.Remove(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func helperCreateFile(t *testing.T, file string) {
+	_, err := os.Create(file)
+	if err != nil {
+		t.Fatal(err)
 	}
 }
