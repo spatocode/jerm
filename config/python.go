@@ -147,9 +147,6 @@ func (p *Python) Build(config *Config, functionContent string) (string, string, 
 		}
 	}
 
-	if err != nil {
-		return "", "", err
-	}
 	return tempDir, function, err
 }
 
