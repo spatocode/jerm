@@ -69,7 +69,7 @@ func TestRuntimeBuild(t *testing.T) {
 	assert.True(utils.FileExists(jermIgnore))
 }
 
-func TestRuntimcCreateFunctionHandler(t *testing.T) {
+func TestRuntimeCreateFunctionHandler(t *testing.T) {
 	assert := assert.New(t)
 
 	cfg := &Config{Name: "test", Stage: "env", Dir: "../assets/tests"}

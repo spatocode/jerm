@@ -9,6 +9,7 @@ import (
 func TestPlaformDefaults(t *testing.T) {
 	assert := assert.New(t)
 	indexHtml := "index.html"
+	requirementsTxt := "requirements.txt"
 
 	p := &Platform{Name: Lambda}
 	assert.Equal(0, p.Memory)
@@ -25,4 +26,18 @@ func TestPlaformDefaults(t *testing.T) {
 	assert.Nil(err)
 	assert.Equal("nodejs18.x", p.Runtime)
 	helperCleanup(t, []string{indexHtml})
+
+	helperCreateFile(t, requirementsTxt)
+	err = p.Defaults()
+	assert.Nil(err)
+	assert.Equal("nodejs18.x", p.Runtime)
+	helperCleanup(t, []string{requirementsTxt})
+
+	p.Runtime = ""
+	helperCreateFile(t, requirementsTxt)
+	err = p.Defaults()
+	assert.Nil(err)
+	assert.NotEqual("nodejs18.x", p.Runtime)
+	assert.Contains(p.Runtime, "python")
+	helperCleanup(t, []string{requirementsTxt})
 }
