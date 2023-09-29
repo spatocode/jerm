@@ -254,3 +254,145 @@ func TestS3Upload(t *testing.T) {
 		})
 	}
 }
+
+func TestS3CreateBucket(t *testing.T) {
+	assert := assert.New(t)
+
+	cases := []tcase{
+		{
+			name: "create bucket failure",
+			args: args{
+				withAPIOptionsFunc: func(s *middleware.Stack) error {
+					return s.Finalize.Add(
+						middleware.FinalizeMiddlewareFunc(
+							"CreateBucketErrorMock",
+							func(ctx context.Context, fi middleware.FinalizeInput, fh middleware.FinalizeHandler) (middleware.FinalizeOutput, middleware.Metadata, error) {
+								return middleware.FinalizeOutput{
+									Result: nil,
+								}, middleware.Metadata{}, fmt.Errorf("CreateBucketError")
+							},
+						),
+						middleware.Before,
+					)
+				},
+			},
+			want:    fmt.Errorf("operation error S3: CreateBucket, CreateBucketError"),
+			wantErr: true,
+		},
+		{
+			name: "create bucket success",
+			args: args{
+				withAPIOptionsFunc: func(s *middleware.Stack) error {
+					return s.Finalize.Add(
+						middleware.FinalizeMiddlewareFunc(
+							"CreateBucketMock",
+							func(ctx context.Context, fi middleware.FinalizeInput, fh middleware.FinalizeHandler) (middleware.FinalizeOutput, middleware.Metadata, error) {
+								return middleware.FinalizeOutput{
+									Result: &s3.CreateBucketOutput{},
+								}, middleware.Metadata{}, nil
+							},
+						),
+						middleware.Before,
+					)
+				},
+			},
+			want:    nil,
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			awsCfg, err := awsConfig.LoadDefaultConfig(
+				context.TODO(),
+				awsConfig.WithRegion("us-west-1"),
+				awsConfig.WithAPIOptions([]func(*middleware.Stack) error{tt.args.withAPIOptionsFunc}),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			cfg := &config.Config{Bucket: "testbucket"}
+			s3Client := NewS3(cfg, awsCfg)
+			err = s3Client.CreateBucket(true)
+			if (err != nil) != tt.wantErr {
+				assert.Errorf(err, "error = %#v, wantErr %#v", err, tt.wantErr)
+				return
+			}
+			if tt.wantErr && err.Error() != tt.want.Error() {
+				assert.EqualError(err, tt.want.Error())
+			}
+		})
+	}
+}
+
+func TestS3Accessible(t *testing.T) {
+	assert := assert.New(t)
+
+	cases := []tcase{
+		{
+			name: "head bucket failure",
+			args: args{
+				withAPIOptionsFunc: func(s *middleware.Stack) error {
+					return s.Finalize.Add(
+						middleware.FinalizeMiddlewareFunc(
+							"HeadBucketErrorMock",
+							func(ctx context.Context, fi middleware.FinalizeInput, fh middleware.FinalizeHandler) (middleware.FinalizeOutput, middleware.Metadata, error) {
+								return middleware.FinalizeOutput{
+									Result: nil,
+								}, middleware.Metadata{}, fmt.Errorf("HeadBucketError")
+							},
+						),
+						middleware.Before,
+					)
+				},
+			},
+			want:    fmt.Errorf("operation error S3: HeadBucket, HeadBucketError"),
+			wantErr: true,
+		},
+		{
+			name: "head bucket success",
+			args: args{
+				withAPIOptionsFunc: func(s *middleware.Stack) error {
+					return s.Finalize.Add(
+						middleware.FinalizeMiddlewareFunc(
+							"HeadBucketMock",
+							func(ctx context.Context, fi middleware.FinalizeInput, fh middleware.FinalizeHandler) (middleware.FinalizeOutput, middleware.Metadata, error) {
+								return middleware.FinalizeOutput{
+									Result: &s3.HeadBucketOutput{},
+								}, middleware.Metadata{}, nil
+							},
+						),
+						middleware.Before,
+					)
+				},
+			},
+			want:    nil,
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			awsCfg, err := awsConfig.LoadDefaultConfig(
+				context.TODO(),
+				awsConfig.WithRegion("us-west-1"),
+				awsConfig.WithAPIOptions([]func(*middleware.Stack) error{tt.args.withAPIOptionsFunc}),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			cfg := &config.Config{Bucket: "testbucket"}
+			s3Client := NewS3(cfg, awsCfg)
+			err = s3Client.Accessible()
+			if (err != nil) != tt.wantErr {
+				assert.Errorf(err, "error = %#v, wantErr %#v", err, tt.wantErr)
+				return
+			}
+			if tt.wantErr && err.Error() != tt.want.Error() {
+				assert.EqualError(err, tt.want.Error())
+			}
+		})
+	}
+}
