@@ -99,9 +99,6 @@ func (l *Lambda) Build() (string, error) {
 	log.Debug("building Jerm project for Lambda...")
 
 	r := config.NewRuntime()
-	if l.config.Entry == "" {
-		l.config.Entry = r.Entry()
-	}
 
 	go func() {
 		err := l.config.ToJson(jerm.DefaultConfigFile)

@@ -44,7 +44,6 @@ func TestReadConfig(t *testing.T) {
 	assert.Equal(512, c.Platform.Memory)
 	assert.Equal(false, c.Platform.KeepWarm)
 	assert.Equal("/home/ubuntu/bodystats", c.Dir)
-	assert.Equal("bodyie", c.Entry)
 }
 
 func TestIgnoredFiles(t *testing.T) {

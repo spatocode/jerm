@@ -51,10 +51,6 @@ type RuntimeInterface interface {
 	// to standalone executable.
 	Build(*Config) (string, string, error)
 
-	// Entry is the directory where the cloud function handler resides.
-	// The directory can be a file.
-	Entry() string
-
 	// lambdaRuntime returns the name of runtime as specified by AWS Lambda
 	lambdaRuntime() (string, error)
 }
@@ -159,10 +155,6 @@ func (r *Runtime) copyNecessaryFilesToPackageDir(src, dest, ignoreFile string) e
 	}
 
 	return nil
-}
-
-func (r *Runtime) Entry() string {
-	return ""
 }
 
 func (r *Runtime) lambdaRuntime() (string, error) {

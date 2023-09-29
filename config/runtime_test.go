@@ -18,10 +18,16 @@ type fakeCommandExecutor struct {
 }
 
 func (c fakeCommandExecutor) RunCommand(command string, args ...string) (string, error) {
+	if fakeOutput == "" {
+		return "", fmt.Errorf("fake err")
+	}
 	return fakeOutput, nil
 }
 
 func (c fakeCommandExecutor) RunCommandWithEnv(env []string, command string, args ...string) (string, error) {
+	if fakeOutput == "" {
+		return "", fmt.Errorf("fake err")
+	}
 	return fakeOutput, nil
 }
 

@@ -11,6 +11,5 @@
 		"memory": 512,
 		"keep_warm": false
 	},
-	"dir": "/home/ubuntu/bodystats",
-	"entry": "bodyie"
+	"dir": "/home/ubuntu/bodystats"
 }

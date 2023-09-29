@@ -45,22 +45,6 @@ func NewPythonRuntime(cmd utils.ShellCommand) RuntimeInterface {
 	return p
 }
 
-// Entry is the directory where the cloud function handler resides.
-// The directory can be a file.
-func (p *Python) Entry() string {
-	switch {
-	case p.IsDjango():
-		workDir, _ := os.Getwd()
-		entry, err := p.getDjangoProject(workDir)
-		if err != nil {
-			log.Debug(err.Error())
-		}
-		return entry
-	default:
-		return ""
-	}
-}
-
 // Gets the python version
 func (p *Python) getVersion() (string, error) {
 	log.Debug("getting python version...")
@@ -147,7 +131,13 @@ func (p *Python) Build(config *Config) (string, string, error) {
 	log.Debug(fmt.Sprintf("built Python deployment package at %s", tempDir))
 
 	if function == "" && p.IsDjango() { // for now it works for Django projects only
-		function, err = p.createFunctionHandler(config, handlerFilepath)
+		workDir, _ := os.Getwd()
+		djangoProject, err := p.getDjangoProject(workDir)
+		if err != nil {
+			log.Debug(err.Error())
+		}
+		handler := strings.ReplaceAll(p.handlerTemplate, ".wsgi", djangoProject+".wsgi")
+		function, err = p.createFunctionHandler(config, handlerFilepath, handler)
 		if err != nil {
 			return "", "", err
 		}
@@ -157,7 +147,7 @@ func (p *Python) Build(config *Config) (string, string, error) {
 }
 
 // createFunctionHandler creates a serverless function handler file
-func (p *Python) createFunctionHandler(config *Config, file string) (string, error) {
+func (p *Python) createFunctionHandler(config *Config, file, handler string) (string, error) {
 	log.Debug("creating lambda handler...")
 	f, err := os.Create(file)
 	if err != nil {
@@ -165,7 +155,6 @@ func (p *Python) createFunctionHandler(config *Config, file string) (string, err
 	}
 	defer f.Close()
 
-	handler := strings.ReplaceAll(p.handlerTemplate, ".wsgi", config.Entry+".wsgi")
 	_, err = f.Write([]byte(handler))
 	if err != nil {
 		return "", err

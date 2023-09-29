@@ -59,12 +59,6 @@ func (g *Go) Build(config *Config) (string, string, error) {
 	return "main", "main", nil
 }
 
-// Entry is the directory where the cloud function handler resides.
-// The directory can be a file.
-func (g *Go) Entry() string {
-	return "main.go"
-}
-
 // lambdaRuntime is the name of the go runtime as specified by AWS Lambda
 func (g *Go) lambdaRuntime() (string, error) {
 	v := strings.Split(g.Version, ".")
