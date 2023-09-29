@@ -113,7 +113,7 @@ func (p *Python) Build(config *Config) (string, string, error) {
 		dependencies["werkzeug"] = "0.16.1"
 	}
 
-	err = p.installNecessaryDependencies(tempDir, sitePackages, dependencies)
+	err = p.installNecessaryDependencies(tempDir, dependencies)
 	if err != nil {
 		return "", "", err
 	}
@@ -168,7 +168,7 @@ func (p *Python) createFunctionHandler(config *Config, file, handler string) (st
 // }
 
 // Installs dependencies needed to run serverless Python
-func (p *Python) installNecessaryDependencies(dir, sitePackages string, dependencies map[string]string) error {
+func (p *Python) installNecessaryDependencies(dir string, dependencies map[string]string) error {
 	log.Debug("installing necessary Python dependencies...")
 	var eg errgroup.Group
 
