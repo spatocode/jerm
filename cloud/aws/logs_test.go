@@ -24,7 +24,7 @@ func TestNewCloudWatch(t *testing.T) {
 	assert.NotNil(s.client)
 }
 
-func TestCloudWatchDeleteLogGroup(t *testing.T) {
+func TestCloudWatchClear(t *testing.T) {
 	assert := assert.New(t)
 
 	cases := []tcase{
@@ -85,7 +85,7 @@ func TestCloudWatchDeleteLogGroup(t *testing.T) {
 
 			cfg := &config.Config{}
 			client := NewCloudWatch(cfg, awsCfg)
-			err = client.deleteLogGroup(tt.args.name)
+			err = client.Clear()
 			if (err != nil) != tt.wantErr {
 				assert.Errorf(err, "error = %#v, wantErr %#v", err, tt.wantErr)
 				return
