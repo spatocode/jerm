@@ -1,7 +1,7 @@
-package aws
+package handlers
 
 const (
-	awsLambdaHandler = `
+	AwsLambdaHandlerDjango = `
 import sys
 import json
 import io
@@ -20,7 +20,7 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 
-def lambda_handler(event, context):
+def handler(event, context):
     if settings.DEBUG:
         logger.debug("Jerm Event: {}".format(event))
 

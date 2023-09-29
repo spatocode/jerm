@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -56,13 +55,15 @@ func NewLambda(cfg *config.Config) (*Lambda, error) {
 		timeout:           DefaultTimeout,
 	}
 
-	lambdaConfig := config.Platform{Name: config.Lambda}
-	err := lambdaConfig.Defaults()
-	if err != nil {
-		return nil, err
+	if l.config.Platform.Name == "" {
+		lambdaConfig := config.Platform{Name: config.Lambda}
+		err := lambdaConfig.Defaults()
+		if err != nil {
+			return nil, err
+		}
+		l.config.Platform = lambdaConfig
 	}
 
-	l.config.Platform = lambdaConfig
 	awsConfig, err := l.getAwsConfig()
 	if err != nil {
 		return nil, err
@@ -98,9 +99,6 @@ func (l *Lambda) Build() (string, error) {
 	log.Debug("building Jerm project for Lambda...")
 
 	r := config.NewRuntime()
-	if l.config.Entry == "" {
-		l.config.Entry = r.Entry()
-	}
 
 	go func() {
 		err := l.config.ToJson(jerm.DefaultConfigFile)
@@ -109,18 +107,14 @@ func (l *Lambda) Build() (string, error) {
 		}
 	}()
 
-	handler, err := r.Build(l.config)
+	packageDir, function, err := r.Build(l.config)
 	if err != nil {
 		return "", err
 	}
 
-	dir := filepath.Dir(handler)
+	l.functionHandler = function
 
-	if l.config.Platform.Handler == "" {
-		err := l.CreateFunctionEntry(handler)
-		return dir, err
-	}
-	return dir, err
+	return packageDir, nil
 }
 
 func (l *Lambda) Invoke(command string) error {
@@ -431,24 +425,6 @@ func (l *Lambda) listLambdaVersions() ([]lambdaTypes.FunctionConfiguration, erro
 		return nil, err
 	}
 	return response.Versions, err
-}
-
-// CreateFunctionEntry creates a Lambda function handler file
-func (l *Lambda) CreateFunctionEntry(file string) error {
-	log.Debug("creating lambda handler...")
-	f, err := os.Create(file)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	handler := strings.ReplaceAll(awsLambdaHandler, ".wsgi", l.config.Entry+".wsgi")
-	_, err = f.Write([]byte(handler))
-	if err != nil {
-		return err
-	}
-	l.functionHandler = "handler.lambda_handler"
-	return nil
 }
 
 func (l *Lambda) isAlreadyDeployed() (bool, error) {

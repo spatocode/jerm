@@ -168,7 +168,7 @@ func (p *Project) packageProject() (*string, int64, error) {
 }
 
 // archivePackage creates an archive file from a project
-func (p *Project) archivePackage(archivePath, dir string) (int64, error) {
+func (p *Project) archivePackage(archivePath, project string) (int64, error) {
 	log.Debug("archiving package...")
 
 	archive, err := os.Create(archivePath)
@@ -179,6 +179,35 @@ func (p *Project) archivePackage(archivePath, dir string) (int64, error) {
 
 	writer := zip.NewWriter(archive)
 	defer writer.Close()
+
+	file, err := os.Open(project)
+	if err != nil {
+		return 0, err
+	}
+	defer file.Close()
+
+	fileInfo, err := file.Stat()
+	if err != nil {
+		return 0, err
+	}
+
+	if !fileInfo.IsDir() {
+		// project is probably a standalone executable
+		w, err := writer.Create(project)
+		if err != nil {
+			return 0, err
+		}
+		if _, err := io.Copy(w, file); err != nil {
+			return 0, err
+		}
+
+		info, err := archive.Stat()
+		if err != nil {
+			return 0, err
+		}
+
+		return info.Size(), nil
+	}
 
 	walker := func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -194,7 +223,7 @@ func (p *Project) archivePackage(archivePath, dir string) (int64, error) {
 		}
 		defer f.Close()
 
-		sPath := strings.Split(path, dir)
+		sPath := strings.Split(path, project)
 		zipContentPath := sPath[len(sPath)-1]
 		w, err := writer.Create(zipContentPath)
 		if err != nil {
@@ -207,7 +236,7 @@ func (p *Project) archivePackage(archivePath, dir string) (int64, error) {
 		return nil
 	}
 
-	err = filepath.WalkDir(dir, walker)
+	err = filepath.WalkDir(project, walker)
 	if err != nil {
 		return 0, err
 	}

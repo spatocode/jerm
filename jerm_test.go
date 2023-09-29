@@ -21,5 +21,4 @@ func TestJermConfigure(t *testing.T) {
 	assert.Equal(false, c.Platform.KeepWarm)
 	assert.Equal("/home/ubuntu/bodystats", c.Dir)
 	assert.Equal(30, c.Platform.Timeout)
-	assert.Equal("bodyie", c.Entry)
 }

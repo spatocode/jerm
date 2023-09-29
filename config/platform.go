@@ -1,5 +1,7 @@
 package config
 
+import "fmt"
+
 const (
 	DefaultTimeout              = 30
 	DefaultMemory               = 512
@@ -36,6 +38,9 @@ func (l *Platform) Defaults() error {
 			l.Runtime, err = runtime.lambdaRuntime()
 			if err != nil {
 				return err
+			}
+			if l.Runtime == RuntimeStatic {
+				l.Runtime = fmt.Sprintf("nodejs%s.x", DefaultNodeVersion[0:2])
 			}
 		}
 	}

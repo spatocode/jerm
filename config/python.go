@@ -14,9 +14,13 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/otiai10/copy"
+	"github.com/spatocode/jerm/config/handlers"
 	"github.com/spatocode/jerm/internal/log"
 	"github.com/spatocode/jerm/internal/utils"
+)
+
+const (
+	DefaultPythonFunctionFile = "handler"
 )
 
 type Python struct {
@@ -24,45 +28,35 @@ type Python struct {
 }
 
 // NewPythonConfig instantiates a new Python runtime
-func NewPythonRuntime() RuntimeInterface {
-	runtime := &Runtime{}
+func NewPythonRuntime(cmd utils.ShellCommand) RuntimeInterface {
+	runtime := &Runtime{
+		cmd,
+		RuntimePython,
+		DefaultPythonVersion,
+		handlers.AwsLambdaHandlerDjango,
+	}
 	p := &Python{runtime}
-	p.Name = RuntimePython
 	version, err := p.getVersion()
 	if err != nil {
 		log.Debug(fmt.Sprintf("encountered an error while getting python version. Default to %s", DefaultPythonVersion))
-		p.Version = DefaultPythonVersion
 		return p
 	}
 	p.Version = version
 	return p
 }
 
-// Entry is the directory where the cloud function handler resides.
-// The directory can be a file.
-func (p *Python) Entry() string {
-	switch {
-	case p.IsDjango():
-		workDir, _ := os.Getwd()
-		entry, err := p.getDjangoProject(workDir)
-		if err != nil {
-			log.Debug(err.Error())
-		}
-		return entry
-	default:
-		return ""
-	}
-}
-
 // Gets the python version
 func (p *Python) getVersion() (string, error) {
 	log.Debug("getting python version...")
-	pythonVersion, err := utils.GetShellCommandOutput("python", "-V")
+	pythonVersion, err := p.RunCommand("python", "-V")
 	if err != nil || strings.Contains(pythonVersion, " 2.") {
-		pythonVersion, err = utils.GetShellCommandOutput("python3", "-V")
+		pythonVersion, err = p.RunCommand("python3", "-V")
+		if err != nil {
+			return "", err
+		}
 	}
 	s := strings.Split(pythonVersion, " ")
-	version := s[len(s)-1]
+	version := strings.TrimSpace(s[len(s)-1])
 	return version, err
 }
 
@@ -73,38 +67,37 @@ func (p *Python) getVirtualEnvironment() (string, error) {
 		return strings.TrimSpace(venv), nil
 	}
 
-	_, err := utils.GetShellCommandOutput("pyenv")
-	if err != nil {
-		pyenvRoot, err := utils.GetShellCommandOutput("pyenv", "root")
-		if err != nil {
-			return "", err
-		}
-		pyenvRoot = strings.TrimSpace(pyenvRoot)
-
-		pyenvVersionName, err := utils.GetShellCommandOutput("pyenv", "version-name")
-		if err != nil {
-			return "", err
-		}
-		pyenvVersionName = strings.TrimSpace(pyenvVersionName)
-		venv = path.Join(pyenvRoot, "versions", pyenvVersionName)
-		return venv, nil
-	}
-	return "", nil
-}
-
-// Builds the Python deployment package
-func (p *Python) Build(config *Config) (string, error) {
-	tempDir, err := os.MkdirTemp(os.TempDir(), "jerm-python")
+	pyenvRoot, err := p.RunCommand("pyenv", "root")
 	if err != nil {
 		return "", err
 	}
+	pyenvRoot = strings.TrimSpace(pyenvRoot)
 
-	handlerPath := filepath.Join(tempDir, "handler.py")
+	pyenvVersionName, err := p.RunCommand("pyenv", "version-name")
+	if err != nil {
+		return "", err
+	}
+	pyenvVersionName = strings.TrimSpace(pyenvVersionName)
+	venv = path.Join(pyenvRoot, "versions", pyenvVersionName)
+
+	return venv, nil
+}
+
+// Build builds the Python deployment package
+// It returns the package path, the function name and error if any
+func (p *Python) Build(config *Config) (string, string, error) {
+	function := config.Platform.Handler
+	tempDir, err := os.MkdirTemp(os.TempDir(), "jerm-package")
+	if err != nil {
+		return "", "", err
+	}
+
+	handlerFilepath := filepath.Join(tempDir, "handler.py")
 
 	venv, err := p.getVirtualEnvironment()
 	if err != nil {
 		//TODO: installs requirements listed in requirements.txt file
-		return "", fmt.Errorf("cannot find a virtual env. Please ensure you're running in a virtual env")
+		return "", "", fmt.Errorf("cannot find a virtual env. Please ensure you're running in a virtual env")
 	}
 
 	version := strings.Split(p.Version, ".")
@@ -120,56 +113,53 @@ func (p *Python) Build(config *Config) (string, error) {
 		dependencies["werkzeug"] = "0.16.1"
 	}
 
-	err = p.installNecessaryDependencies(tempDir, sitePackages, dependencies)
+	err = p.installNecessaryDependencies(tempDir, dependencies)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
-	err = p.copyNecessaryFilesToTempDir(config.Dir, tempDir, jermIgnoreFile)
+	err = p.copyNecessaryFilesToPackageDir(config.Dir, tempDir, jermIgnoreFile)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
-	err = p.copyNecessaryFilesToTempDir(sitePackages, tempDir, jermIgnoreFile)
+	err = p.copyNecessaryFilesToPackageDir(sitePackages, tempDir, jermIgnoreFile)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	log.Debug(fmt.Sprintf("built Python deployment package at %s", tempDir))
 
-	return handlerPath, err
+	if function == "" && p.IsDjango() { // for now it works for Django projects only
+		workDir, _ := os.Getwd()
+		djangoProject, err := p.getDjangoProject(workDir)
+		if err != nil {
+			log.Debug(err.Error())
+		}
+		handler := strings.ReplaceAll(p.handlerTemplate, ".wsgi", djangoProject+".wsgi")
+		function, err = p.createFunctionHandler(config, handlerFilepath, handler)
+		if err != nil {
+			return "", "", err
+		}
+	}
+
+	return tempDir, function, err
 }
 
-// Copies files from src to dest
-func (p *Python) copyNecessaryFilesToTempDir(src, dest, ignoreFile string) error {
-	log.Debug("copying necessary Python files...")
-
-	ignoredFiles := defaultIgnoredGlobs
-	files, err := ReadIgnoredFiles(ignoreFile)
-	if err == nil {
-		ignoredFiles = append(ignoredFiles, files...)
-	}
-
-	opt := copy.Options{
-		Skip: func(srcinfo os.FileInfo, src, dest string) (bool, error) {
-			for _, ignoredFile := range ignoredFiles {
-				match, _ := filepath.Match(ignoredFile, srcinfo.Name())
-				matchedFile := srcinfo.Name() == ignoredFile || match ||
-					strings.HasSuffix(srcinfo.Name(), ignoredFile) ||
-					strings.HasPrefix(srcinfo.Name(), ignoredFile)
-				if matchedFile {
-					return matchedFile, nil
-				}
-			}
-			return false, nil
-		},
-	}
-	err = copy.Copy(src, dest, opt)
+// createFunctionHandler creates a serverless function handler file
+func (p *Python) createFunctionHandler(config *Config, file, handler string) (string, error) {
+	log.Debug("creating lambda handler...")
+	f, err := os.Create(file)
 	if err != nil {
-		return err
+		return "", err
 	}
+	defer f.Close()
 
-	return nil
+	_, err = f.Write([]byte(handler))
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%s.%s", DefaultPythonFunctionFile, DefaultServerlessFunction), nil
 }
 
 // installRequirements installs requirements listed in requirements.txt file
@@ -178,7 +168,7 @@ func (p *Python) copyNecessaryFilesToTempDir(src, dest, ignoreFile string) error
 // }
 
 // Installs dependencies needed to run serverless Python
-func (p *Python) installNecessaryDependencies(dir, sitePackages string, dependencies map[string]string) error {
+func (p *Python) installNecessaryDependencies(dir string, dependencies map[string]string) error {
 	log.Debug("installing necessary Python dependencies...")
 	var eg errgroup.Group
 

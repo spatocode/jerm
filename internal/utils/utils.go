@@ -2,7 +2,9 @@ package utils
 
 import (
 	"bufio"
+	"bytes"
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"os"
@@ -11,6 +13,42 @@ import (
 
 	"github.com/spatocode/jerm/internal/log"
 )
+
+type ShellCommand interface {
+	RunCommand(command string, args ...string) (string, error)
+	RunCommandWithEnv(env []string, command string, args ...string) (string, error)
+}
+
+type cmdExecutor struct {
+	cmd func(name string, arg ...string) *exec.Cmd
+}
+
+func Command() ShellCommand {
+	return cmdExecutor{cmd: exec.Command}
+}
+
+func (c cmdExecutor) RunCommand(command string, args ...string) (string, error) {
+	cmd := c.cmd(command, args...)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
+	if err != nil && stderr.Available() != 0 {
+		return string(out), errors.New(stderr.String())
+	}
+	return string(out), err
+}
+
+func (c cmdExecutor) RunCommandWithEnv(env []string, command string, args ...string) (string, error) {
+	cmd := c.cmd(command, args...)
+	cmd.Env = append(os.Environ(), env...)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
+	if err != nil && stderr.Available() != 0 {
+		return string(out), errors.New(stderr.String())
+	}
+	return string(out), err
+}
 
 func RemoveLocalFile(zipPath string) error {
 	err := os.Remove(zipPath)
@@ -35,12 +73,6 @@ func Request(location string) (*http.Response, error) {
 	}
 	res, err := http.DefaultClient.Do(req)
 	return res, err
-}
-
-func GetShellCommandOutput(command string, args ...string) (string, error) {
-	cmd := exec.Command(command, args...)
-	out, err := cmd.Output()
-	return string(out), err
 }
 
 // GetStdIn gets a stdin prompt from user

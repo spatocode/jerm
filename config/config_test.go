@@ -29,6 +29,19 @@ func TestConfigDefaults(t *testing.T) {
 	assert.NotNil(cfg.Region)
 }
 
+func TestConfigToJson(t *testing.T) {
+	assert := assert.New(t)
+	testfile := "../assets/test.json"
+	cfg := &Config{}
+
+	assert.False(utils.FileExists(testfile))
+	err := cfg.ToJson(testfile)
+	assert.Nil(err)
+	assert.True(utils.FileExists(testfile))
+
+	helperCleanup(t, []string{testfile})
+}
+
 func TestReadConfig(t *testing.T) {
 	assert := assert.New(t)
 	c, err := ReadConfig("../assets/tests/jerm.json")
@@ -44,7 +57,6 @@ func TestReadConfig(t *testing.T) {
 	assert.Equal(512, c.Platform.Memory)
 	assert.Equal(false, c.Platform.KeepWarm)
 	assert.Equal("/home/ubuntu/bodystats", c.Dir)
-	assert.Equal("bodyie", c.Entry)
 }
 
 func TestIgnoredFiles(t *testing.T) {

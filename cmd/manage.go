@@ -12,6 +12,7 @@ import (
 	"github.com/spatocode/jerm/cloud/aws"
 	"github.com/spatocode/jerm/config"
 	"github.com/spatocode/jerm/internal/log"
+	"github.com/spatocode/jerm/internal/utils"
 )
 
 // manageCmd represents the manage command
@@ -37,7 +38,7 @@ var manageCmd = &cobra.Command{
 			return
 		}
 
-		runtime := config.NewPythonRuntime()
+		runtime := config.NewPythonRuntime(utils.Command())
 		python, ok := runtime.(*config.Python)
 		if !ok || !python.IsDjango() {
 			log.PrintError("manage command is for Django projects only")
