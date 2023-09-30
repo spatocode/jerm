@@ -3,12 +3,15 @@ package aws
 import (
 	"context"
 	"fmt"
+	"io"
+	"os"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
 	cwTypes "github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs/types"
+	"github.com/fatih/color"
 
 	"github.com/aws/smithy-go/middleware"
 	"github.com/spatocode/jerm/config"
@@ -316,4 +319,56 @@ func TestCloudWatchFilterLogEvents(t *testing.T) {
 			assert.IsType(out, &cloudwatchlogs.FilterLogEventsOutput{})
 		})
 	}
+}
+
+func TestCloudWatchPrintLogs(t *testing.T) {
+	assert := assert.New(t)
+
+	stdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	color.Output = w
+
+	awsCfg, err := awsConfig.LoadDefaultConfig(
+		context.TODO(),
+		awsConfig.WithRegion("us-west-1"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := &config.Config{}
+	events := []cwTypes.FilteredLogEvent{
+		{
+			Timestamp: aws.Int64(40),
+			Message:   aws.String("testevent1"),
+		},
+		{
+			Timestamp: aws.Int64(40),
+			Message:   aws.String("testevent2"),
+		},
+		{
+			Timestamp: aws.Int64(40),
+			Message:   aws.String("testevent REPORT RequestId"),
+		},
+		{
+			Timestamp: aws.Int64(40),
+			Message:   aws.String("testevent START RequestId"),
+		},
+		{
+			Timestamp: aws.Int64(40),
+			Message:   aws.String("testevent END RequestId"),
+		},
+	}
+	client := NewCloudWatch(cfg, awsCfg)
+	client.printLogs(events)
+
+	w.Close()
+	out, _ := io.ReadAll(r)
+	color.Output = stdout
+
+	expected := "[1970-01-01 01:00:00 +0100 WAT] testevent1\n[1970-01-01 01:00:00 +0100 WAT] testevent2\n"
+	assert.Equal(expected, string(out))
 }
