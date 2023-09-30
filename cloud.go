@@ -9,7 +9,7 @@ type CloudStorage interface {
 
 type CloudMonitor interface {
 	Watch()
-	Clear() error
+	Clear(string) error
 }
 
 type CloudPlatform interface {

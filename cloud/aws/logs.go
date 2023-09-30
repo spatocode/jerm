@@ -154,8 +154,7 @@ func (c *CloudWatch) deleteLogGroup(groupName string) error {
 }
 
 // Clear deletes AWS CloudWatch logs
-func (c *CloudWatch) Clear() error {
-	groupName := fmt.Sprintf("/aws/lambda/%s", c.config.GetFunctionName())
-	err := c.deleteLogGroup(groupName)
+func (c *CloudWatch) Clear(name string) error {
+	err := c.deleteLogGroup(name)
 	return err
 }
