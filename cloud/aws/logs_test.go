@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
@@ -339,26 +340,27 @@ func TestCloudWatchPrintLogs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	timestamp := aws.Int64(40)
 	cfg := &config.Config{}
 	events := []cwTypes.FilteredLogEvent{
 		{
-			Timestamp: aws.Int64(40),
+			Timestamp: timestamp,
 			Message:   aws.String("testevent1"),
 		},
 		{
-			Timestamp: aws.Int64(40),
+			Timestamp: timestamp,
 			Message:   aws.String("testevent2"),
 		},
 		{
-			Timestamp: aws.Int64(40),
+			Timestamp: timestamp,
 			Message:   aws.String("testevent REPORT RequestId"),
 		},
 		{
-			Timestamp: aws.Int64(40),
+			Timestamp: timestamp,
 			Message:   aws.String("testevent START RequestId"),
 		},
 		{
-			Timestamp: aws.Int64(40),
+			Timestamp: timestamp,
 			Message:   aws.String("testevent END RequestId"),
 		},
 	}
@@ -369,6 +371,7 @@ func TestCloudWatchPrintLogs(t *testing.T) {
 	out, _ := io.ReadAll(r)
 	color.Output = stdout
 
-	expected := "[1970-01-01 01:00:00 +0100 WAT] testevent1\n[1970-01-01 01:00:00 +0100 WAT] testevent2\n"
+	ti := time.Unix(*timestamp/1000, 0)
+	expected := fmt.Sprintf("[%s] testevent1\n[%s] testevent2\n", ti, ti)
 	assert.Equal(expected, string(out))
 }
