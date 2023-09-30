@@ -89,7 +89,7 @@ func TestCloudWatchClear(t *testing.T) {
 
 			cfg := &config.Config{}
 			client := NewCloudWatch(cfg, awsCfg)
-			err = client.Clear()
+			err = client.Clear("/test/group/name")
 			if (err != nil) != tt.wantErr {
 				assert.Errorf(err, "error = %#v, wantErr %#v", err, tt.wantErr)
 				return

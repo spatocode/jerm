@@ -15,6 +15,7 @@ import (
 	cf "github.com/awslabs/goformation/v7/cloudformation"
 	cfApigateway "github.com/awslabs/goformation/v7/cloudformation/apigateway"
 
+	"github.com/spatocode/jerm"
 	"github.com/spatocode/jerm/config"
 	"github.com/spatocode/jerm/internal/log"
 	"github.com/spatocode/jerm/internal/utils"
@@ -25,21 +26,24 @@ type ApiGateway struct {
 	cfTemplate *cf.Template
 	cfClient   *cloudformation.Client
 	client     *apigateway.Client
-	monitor    *CloudWatch
+	monitor    jerm.CloudMonitor
 	config     *config.Config
 	awsConfig  aws.Config
 }
 
 func NewApiGateway(config *config.Config, awsConfig aws.Config) *ApiGateway {
-	s3 := NewS3(config, awsConfig)
 	return &ApiGateway{
-		s3:        s3,
+		s3:        NewS3(config, awsConfig),
 		awsConfig: awsConfig,
 		monitor:   NewCloudWatch(config, awsConfig),
 		cfClient:  cloudformation.NewFromConfig(awsConfig),
 		client:    apigateway.NewFromConfig(awsConfig),
 		config:    config,
 	}
+}
+
+func (a *ApiGateway) WithMonitor(monitor jerm.CloudMonitor) {
+	a.monitor = monitor
 }
 
 func (a *ApiGateway) setup(functionArn *string) error {
@@ -320,7 +324,7 @@ func (a *ApiGateway) deleteLogs() error {
 		}
 		for _, item := range resp.Item {
 			groupName := fmt.Sprintf("API-Gateway-Execution-Logs_%s/%s", *id, *item.StageName)
-			a.monitor.deleteLogGroup(groupName)
+			a.monitor.Clear(groupName)
 		}
 	}
 	return nil
