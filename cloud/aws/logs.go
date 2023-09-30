@@ -146,14 +146,16 @@ func (c *CloudWatch) getLogStreams(logName string) ([]cwTypes.LogStream, error) 
 }
 
 // deleteLogGroup deletes a specified log group name
-func (c *CloudWatch) deleteLogGroup(groupName string) {
-	c.client.DeleteLogGroup(context.TODO(), &cloudwatchlogs.DeleteLogGroupInput{
+func (c *CloudWatch) deleteLogGroup(groupName string) error {
+	_, err := c.client.DeleteLogGroup(context.TODO(), &cloudwatchlogs.DeleteLogGroupInput{
 		LogGroupName: aws.String(groupName),
 	})
+	return err
 }
 
 // Clear deletes AWS CloudWatch logs
-func (c *CloudWatch) Clear() {
+func (c *CloudWatch) Clear() error {
 	groupName := fmt.Sprintf("/aws/lambda/%s", c.config.GetFunctionName())
-	c.deleteLogGroup(groupName)
+	err := c.deleteLogGroup(groupName)
+	return err
 }

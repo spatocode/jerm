@@ -3,75 +3,67 @@ package aws
 import (
 	"context"
 	"fmt"
+	"io"
+	"os"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
+	cwTypes "github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs/types"
+	"github.com/fatih/color"
 
 	"github.com/aws/smithy-go/middleware"
 	"github.com/spatocode/jerm/config"
 	"github.com/stretchr/testify/assert"
 )
 
-type args struct {
-	name               string
-	withAPIOptionsFunc func(*middleware.Stack) error
-}
-
-type tcase struct {
-	name    string
-	args    args
-	want    error
-	wantErr bool
-}
-
-func TestNewS3(t *testing.T) {
+func TestNewCloudWatch(t *testing.T) {
 	assert := assert.New(t)
 	cfg := &config.Config{}
 	awsC := aws.Config{}
-	s := NewS3(cfg, awsC)
+	s := NewCloudWatch(cfg, awsC)
 	assert.Equal(cfg, s.config)
-	assert.Equal(awsC, s.awsConfig)
 	assert.NotNil(s.client)
 }
 
-func TestS3Delete(t *testing.T) {
+func TestCloudWatchClear(t *testing.T) {
 	assert := assert.New(t)
 
 	cases := []tcase{
 		{
-			name: "delete object failure",
+			name: "delete log group failure",
 			args: args{
-				name: "testobj",
+				name: "groupName",
 				withAPIOptionsFunc: func(s *middleware.Stack) error {
 					return s.Finalize.Add(
 						middleware.FinalizeMiddlewareFunc(
-							"DeleteObjectErrorMock",
+							"DeleteLogGroupErrorMock",
 							func(ctx context.Context, fi middleware.FinalizeInput, fh middleware.FinalizeHandler) (middleware.FinalizeOutput, middleware.Metadata, error) {
 								return middleware.FinalizeOutput{
 									Result: nil,
-								}, middleware.Metadata{}, fmt.Errorf("DeleteObjectError")
+								}, middleware.Metadata{}, fmt.Errorf("DeleteLogGroupError")
 							},
 						),
 						middleware.Before,
 					)
 				},
 			},
-			want:    fmt.Errorf("operation error S3: DeleteObject, DeleteObjectError"),
+			want:    fmt.Errorf("operation error CloudWatch Logs: DeleteLogGroup, DeleteLogGroupError"),
 			wantErr: true,
 		},
 		{
-			name: "delete object successfully",
+			name: "delete log group successfull",
 			args: args{
-				name: "tstobject",
+				name: "groupName",
 				withAPIOptionsFunc: func(s *middleware.Stack) error {
 					return s.Finalize.Add(
 						middleware.FinalizeMiddlewareFunc(
-							"DeleteObjectMock",
+							"DeleteLogGroupMock",
 							func(ctx context.Context, fi middleware.FinalizeInput, fh middleware.FinalizeHandler) (middleware.FinalizeOutput, middleware.Metadata, error) {
 								return middleware.FinalizeOutput{
-									Result: &s3.DeleteObjectOutput{},
+									Result: &cloudwatchlogs.DeleteLogGroupOutput{},
 								}, middleware.Metadata{}, nil
 							},
 						),
@@ -95,9 +87,9 @@ func TestS3Delete(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			cfg := &config.Config{Bucket: "testbucket"}
-			s3Client := NewS3(cfg, awsCfg)
-			err = s3Client.Delete(tt.args.name)
+			cfg := &config.Config{}
+			client := NewCloudWatch(cfg, awsCfg)
+			err = client.Clear()
 			if (err != nil) != tt.wantErr {
 				assert.Errorf(err, "error = %#v, wantErr %#v", err, tt.wantErr)
 				return
@@ -109,42 +101,42 @@ func TestS3Delete(t *testing.T) {
 	}
 }
 
-func TestS3HeadBucket(t *testing.T) {
+func TestCloudWatchGetLogStreams(t *testing.T) {
 	assert := assert.New(t)
 
 	cases := []tcase{
 		{
-			name: "head bucket failure",
+			name: "get log stream failure",
 			args: args{
-				name: "testobj",
+				name: "logName",
 				withAPIOptionsFunc: func(s *middleware.Stack) error {
 					return s.Finalize.Add(
 						middleware.FinalizeMiddlewareFunc(
-							"HeadBucketErrorMock",
+							"DescribeLogStreamsErrorMock",
 							func(ctx context.Context, fi middleware.FinalizeInput, fh middleware.FinalizeHandler) (middleware.FinalizeOutput, middleware.Metadata, error) {
 								return middleware.FinalizeOutput{
 									Result: nil,
-								}, middleware.Metadata{}, fmt.Errorf("HeadBucketError")
+								}, middleware.Metadata{}, fmt.Errorf("DescribeLogStreamsError")
 							},
 						),
 						middleware.Before,
 					)
 				},
 			},
-			want:    fmt.Errorf("operation error S3: HeadBucket, HeadBucketError"),
+			want:    fmt.Errorf("operation error CloudWatch Logs: DescribeLogStreams, DescribeLogStreamsError"),
 			wantErr: true,
 		},
 		{
-			name: "head bucket success",
+			name: "describe log stream successfull",
 			args: args{
-				name: "tstobject",
+				name: "groupName",
 				withAPIOptionsFunc: func(s *middleware.Stack) error {
 					return s.Finalize.Add(
 						middleware.FinalizeMiddlewareFunc(
-							"HeadBucketMock",
+							"DescribeLogStreamsMock",
 							func(ctx context.Context, fi middleware.FinalizeInput, fh middleware.FinalizeHandler) (middleware.FinalizeOutput, middleware.Metadata, error) {
 								return middleware.FinalizeOutput{
-									Result: &s3.HeadBucketOutput{},
+									Result: &cloudwatchlogs.DescribeLogStreamsOutput{},
 								}, middleware.Metadata{}, nil
 							},
 						),
@@ -168,9 +160,83 @@ func TestS3HeadBucket(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			cfg := &config.Config{Bucket: "testbucket"}
-			s3Client := NewS3(cfg, awsCfg)
-			err = s3Client.headBucket()
+			cfg := &config.Config{}
+			client := NewCloudWatch(cfg, awsCfg)
+			out, err := client.getLogStreams(tt.args.name)
+			if (err != nil) != tt.wantErr {
+				assert.Errorf(err, "error = %#v, wantErr %#v", err, tt.wantErr)
+				return
+			}
+			if tt.wantErr && err.Error() != tt.want.Error() {
+				assert.EqualError(err, tt.want.Error())
+			}
+			assert.IsType(out, []cwTypes.LogStream{})
+		})
+	}
+}
+
+func TestCloudWatchCreateLogStreams(t *testing.T) {
+	assert := assert.New(t)
+
+	cases := []tcase{
+		{
+			name: "create log stream failure",
+			args: args{
+				name: "logName",
+				withAPIOptionsFunc: func(s *middleware.Stack) error {
+					return s.Finalize.Add(
+						middleware.FinalizeMiddlewareFunc(
+							"CreateLogGroupErrorMock",
+							func(ctx context.Context, fi middleware.FinalizeInput, fh middleware.FinalizeHandler) (middleware.FinalizeOutput, middleware.Metadata, error) {
+								return middleware.FinalizeOutput{
+									Result: nil,
+								}, middleware.Metadata{}, fmt.Errorf("CreateLogGroupError")
+							},
+						),
+						middleware.Before,
+					)
+				},
+			},
+			want:    fmt.Errorf("operation error CloudWatch Logs: CreateLogGroup, CreateLogGroupError"),
+			wantErr: true,
+		},
+		{
+			name: "create log stream successfull",
+			args: args{
+				name: "logName",
+				withAPIOptionsFunc: func(s *middleware.Stack) error {
+					return s.Finalize.Add(
+						middleware.FinalizeMiddlewareFunc(
+							"CreateLogGroupMock",
+							func(ctx context.Context, fi middleware.FinalizeInput, fh middleware.FinalizeHandler) (middleware.FinalizeOutput, middleware.Metadata, error) {
+								return middleware.FinalizeOutput{
+									Result: &cloudwatchlogs.CreateLogGroupOutput{},
+								}, middleware.Metadata{}, nil
+							},
+						),
+						middleware.Before,
+					)
+				},
+			},
+			want:    nil,
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			awsCfg, err := awsConfig.LoadDefaultConfig(
+				context.TODO(),
+				awsConfig.WithRegion("us-west-1"),
+				awsConfig.WithAPIOptions([]func(*middleware.Stack) error{tt.args.withAPIOptionsFunc}),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			cfg := &config.Config{}
+			client := NewCloudWatch(cfg, awsCfg)
+			err = client.createLogStreams(tt.args.name)
 			if (err != nil) != tt.wantErr {
 				assert.Errorf(err, "error = %#v, wantErr %#v", err, tt.wantErr)
 				return
@@ -182,42 +248,42 @@ func TestS3HeadBucket(t *testing.T) {
 	}
 }
 
-func TestS3Upload(t *testing.T) {
+func TestCloudWatchFilterLogEvents(t *testing.T) {
 	assert := assert.New(t)
 
 	cases := []tcase{
 		{
-			name: "upload object failure",
+			name: "filter log events failure",
 			args: args{
-				name: "../../assets/tests/testfile1",
+				name: "logName",
 				withAPIOptionsFunc: func(s *middleware.Stack) error {
 					return s.Finalize.Add(
 						middleware.FinalizeMiddlewareFunc(
-							"PutObjectErrorMock",
+							"FilterLogEventsErrorMock",
 							func(ctx context.Context, fi middleware.FinalizeInput, fh middleware.FinalizeHandler) (middleware.FinalizeOutput, middleware.Metadata, error) {
 								return middleware.FinalizeOutput{
 									Result: nil,
-								}, middleware.Metadata{}, fmt.Errorf("PutObjectError")
+								}, middleware.Metadata{}, fmt.Errorf("FilterLogEventsError")
 							},
 						),
 						middleware.Before,
 					)
 				},
 			},
-			want:    fmt.Errorf("operation error S3: PutObject, PutObjectError : encountered error while uploading package. Aborting"),
+			want:    fmt.Errorf("operation error CloudWatch Logs: FilterLogEvents, FilterLogEventsError"),
 			wantErr: true,
 		},
 		{
-			name: "upload object success",
+			name: "filter log events successfull",
 			args: args{
-				name: "../../assets/tests/testfile2",
+				name: "logName",
 				withAPIOptionsFunc: func(s *middleware.Stack) error {
 					return s.Finalize.Add(
 						middleware.FinalizeMiddlewareFunc(
-							"PutObjectMock",
+							"FilterLogEventsMock",
 							func(ctx context.Context, fi middleware.FinalizeInput, fh middleware.FinalizeHandler) (middleware.FinalizeOutput, middleware.Metadata, error) {
 								return middleware.FinalizeOutput{
-									Result: &s3.PutObjectOutput{},
+									Result: &cloudwatchlogs.FilterLogEventsOutput{},
 								}, middleware.Metadata{}, nil
 							},
 						),
@@ -241,9 +307,9 @@ func TestS3Upload(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			cfg := &config.Config{Bucket: "testbucket"}
-			s3Client := NewS3(cfg, awsCfg)
-			err = s3Client.Upload(tt.args.name)
+			cfg := &config.Config{}
+			client := NewCloudWatch(cfg, awsCfg)
+			out, err := client.filterLogEvents(tt.args.name, []string{""}, 12, &cloudwatchlogs.FilterLogEventsOutput{})
 			if (err != nil) != tt.wantErr {
 				assert.Errorf(err, "error = %#v, wantErr %#v", err, tt.wantErr)
 				return
@@ -251,148 +317,61 @@ func TestS3Upload(t *testing.T) {
 			if tt.wantErr && err.Error() != tt.want.Error() {
 				assert.EqualError(err, tt.want.Error())
 			}
+			assert.IsType(out, &cloudwatchlogs.FilterLogEventsOutput{})
 		})
 	}
 }
 
-func TestS3CreateBucket(t *testing.T) {
+func TestCloudWatchPrintLogs(t *testing.T) {
 	assert := assert.New(t)
 
-	cases := []tcase{
-		{
-			name: "create bucket failure",
-			args: args{
-				withAPIOptionsFunc: func(s *middleware.Stack) error {
-					return s.Finalize.Add(
-						middleware.FinalizeMiddlewareFunc(
-							"CreateBucketErrorMock",
-							func(ctx context.Context, fi middleware.FinalizeInput, fh middleware.FinalizeHandler) (middleware.FinalizeOutput, middleware.Metadata, error) {
-								return middleware.FinalizeOutput{
-									Result: nil,
-								}, middleware.Metadata{}, fmt.Errorf("CreateBucketError")
-							},
-						),
-						middleware.Before,
-					)
-				},
-			},
-			want:    fmt.Errorf("operation error S3: CreateBucket, CreateBucketError"),
-			wantErr: true,
-		},
-		{
-			name: "create bucket success",
-			args: args{
-				withAPIOptionsFunc: func(s *middleware.Stack) error {
-					return s.Finalize.Add(
-						middleware.FinalizeMiddlewareFunc(
-							"CreateBucketMock",
-							func(ctx context.Context, fi middleware.FinalizeInput, fh middleware.FinalizeHandler) (middleware.FinalizeOutput, middleware.Metadata, error) {
-								return middleware.FinalizeOutput{
-									Result: &s3.CreateBucketOutput{},
-								}, middleware.Metadata{}, nil
-							},
-						),
-						middleware.Before,
-					)
-				},
-			},
-			want:    nil,
-			wantErr: false,
-		},
+	stdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	for _, tt := range cases {
-		t.Run(tt.name, func(t *testing.T) {
-			awsCfg, err := awsConfig.LoadDefaultConfig(
-				context.TODO(),
-				awsConfig.WithRegion("us-west-1"),
-				awsConfig.WithAPIOptions([]func(*middleware.Stack) error{tt.args.withAPIOptionsFunc}),
-			)
-			if err != nil {
-				t.Fatal(err)
-			}
+	color.Output = w
 
-			cfg := &config.Config{Bucket: "testbucket"}
-			s3Client := NewS3(cfg, awsCfg)
-			err = s3Client.CreateBucket(true)
-			if (err != nil) != tt.wantErr {
-				assert.Errorf(err, "error = %#v, wantErr %#v", err, tt.wantErr)
-				return
-			}
-			if tt.wantErr && err.Error() != tt.want.Error() {
-				assert.EqualError(err, tt.want.Error())
-			}
-		})
+	awsCfg, err := awsConfig.LoadDefaultConfig(
+		context.TODO(),
+		awsConfig.WithRegion("us-west-1"),
+	)
+	if err != nil {
+		t.Fatal(err)
 	}
-}
-
-func TestS3Accessible(t *testing.T) {
-	assert := assert.New(t)
-
-	cases := []tcase{
+	timestamp := aws.Int64(40)
+	cfg := &config.Config{}
+	events := []cwTypes.FilteredLogEvent{
 		{
-			name: "head bucket failure",
-			args: args{
-				withAPIOptionsFunc: func(s *middleware.Stack) error {
-					return s.Finalize.Add(
-						middleware.FinalizeMiddlewareFunc(
-							"HeadBucketErrorMock",
-							func(ctx context.Context, fi middleware.FinalizeInput, fh middleware.FinalizeHandler) (middleware.FinalizeOutput, middleware.Metadata, error) {
-								return middleware.FinalizeOutput{
-									Result: nil,
-								}, middleware.Metadata{}, fmt.Errorf("HeadBucketError")
-							},
-						),
-						middleware.Before,
-					)
-				},
-			},
-			want:    fmt.Errorf("operation error S3: HeadBucket, HeadBucketError"),
-			wantErr: true,
+			Timestamp: timestamp,
+			Message:   aws.String("testevent1"),
 		},
 		{
-			name: "head bucket success",
-			args: args{
-				withAPIOptionsFunc: func(s *middleware.Stack) error {
-					return s.Finalize.Add(
-						middleware.FinalizeMiddlewareFunc(
-							"HeadBucketMock",
-							func(ctx context.Context, fi middleware.FinalizeInput, fh middleware.FinalizeHandler) (middleware.FinalizeOutput, middleware.Metadata, error) {
-								return middleware.FinalizeOutput{
-									Result: &s3.HeadBucketOutput{},
-								}, middleware.Metadata{}, nil
-							},
-						),
-						middleware.Before,
-					)
-				},
-			},
-			want:    nil,
-			wantErr: false,
+			Timestamp: timestamp,
+			Message:   aws.String("testevent2"),
+		},
+		{
+			Timestamp: timestamp,
+			Message:   aws.String("testevent REPORT RequestId"),
+		},
+		{
+			Timestamp: timestamp,
+			Message:   aws.String("testevent START RequestId"),
+		},
+		{
+			Timestamp: timestamp,
+			Message:   aws.String("testevent END RequestId"),
 		},
 	}
+	client := NewCloudWatch(cfg, awsCfg)
+	client.printLogs(events)
 
-	for _, tt := range cases {
-		t.Run(tt.name, func(t *testing.T) {
-			awsCfg, err := awsConfig.LoadDefaultConfig(
-				context.TODO(),
-				awsConfig.WithRegion("us-west-1"),
-				awsConfig.WithAPIOptions([]func(*middleware.Stack) error{tt.args.withAPIOptionsFunc}),
-			)
-			if err != nil {
-				t.Fatal(err)
-			}
+	w.Close()
+	out, _ := io.ReadAll(r)
+	color.Output = stdout
 
-			cfg := &config.Config{Bucket: "testbucket"}
-			s3Client := NewS3(cfg, awsCfg)
-			err = s3Client.Accessible()
-			if (err != nil) != tt.wantErr {
-				assert.Errorf(err, "error = %#v, wantErr %#v", err, tt.wantErr)
-				return
-			}
-			if tt.wantErr && err.Error() != tt.want.Error() {
-				assert.EqualError(err, tt.want.Error())
-			}
-		})
-	}
+	ti := time.Unix(*timestamp/1000, 0)
+	expected := fmt.Sprintf("[%s] testevent1\n[%s] testevent2\n", ti, ti)
+	assert.Equal(expected, string(out))
 }
