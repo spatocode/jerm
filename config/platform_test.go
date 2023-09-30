@@ -16,7 +16,7 @@ func TestPlaformDefaults(t *testing.T) {
 	assert.Equal(0, p.Timeout)
 	assert.Equal("", p.Runtime)
 	err := p.Defaults()
-	assert.ErrorContains(err, "cannot detect runtime. please specify runtime in your Jerm.json file")
+	assert.EqualError(err, "cannot detect runtime. please specify runtime in your Jerm.json file")
 	assert.Equal("", p.Runtime)
 	assert.Equal(DefaultMemory, p.Memory)
 	assert.Equal(DefaultTimeout, p.Timeout)

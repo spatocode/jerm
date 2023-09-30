@@ -99,7 +99,7 @@ func (r *Runtime) Build(config *Config) (string, string, error) {
 
 	if r.Name == RuntimeStatic && function == "" {
 		handlerFilepath := filepath.Join(tempDir, "index.js")
-		function, err = r.createFunctionHandler(config, handlerFilepath)
+		function, err = r.createFunctionHandler(handlerFilepath, []byte(r.handlerTemplate))
 		if err != nil {
 			return "", "", err
 		}
@@ -109,7 +109,7 @@ func (r *Runtime) Build(config *Config) (string, string, error) {
 }
 
 // createFunctionHandler creates a serverless function handler file
-func (r *Runtime) createFunctionHandler(config *Config, file string) (string, error) {
+func (r *Runtime) createFunctionHandler(file string, content []byte) (string, error) {
 	log.Debug("creating lambda handler...")
 	f, err := os.Create(file)
 	if err != nil {
@@ -117,7 +117,7 @@ func (r *Runtime) createFunctionHandler(config *Config, file string) (string, er
 	}
 	defer f.Close()
 
-	_, err = f.Write([]byte(r.handlerTemplate))
+	_, err = f.Write(content)
 	if err != nil {
 		return "", err
 	}

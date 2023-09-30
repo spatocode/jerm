@@ -73,17 +73,33 @@ func TestRuntimeBuild(t *testing.T) {
 	assert.True(utils.FileExists(testfile2))
 	assert.True(utils.FileExists(jermJson))
 	assert.True(utils.FileExists(jermIgnore))
+
+	r.Name = RuntimeStatic
+	_, f, err = r.Build(cfg)
+	assert.Nil(err)
+	assert.Equal("index.handler", f)
+}
+
+func TestRuntimeBuildError(t *testing.T) {
+	assert := assert.New(t)
+
+	fakeOutput = ""
+	r := NewRuntime()
+	cfg := &Config{Name: "test", Stage: "env"}
+	p, f, err := r.Build(cfg)
+	assert.EqualError(err, "lstat : no such file or directory")
+	assert.Equal("", p)
+	assert.Equal("", f)
 }
 
 func TestRuntimeCreateFunctionHandler(t *testing.T) {
 	assert := assert.New(t)
 
-	cfg := &Config{Name: "test", Stage: "env", Dir: "../assets/tests"}
 	ri := NewRuntime()
 	r := ri.(*Runtime)
 
 	handlerFile := filepath.Join("../assets/tests", "index.js")
-	handler, err := r.createFunctionHandler(cfg, handlerFile)
+	handler, err := r.createFunctionHandler(handlerFile, []byte("This is a test handler"))
 
 	assert.Nil(err)
 	assert.Equal("index.handler", handler)
@@ -128,7 +144,7 @@ func TestNewRuntime(t *testing.T) {
 
 func helperCleanup(t *testing.T, files []string) {
 	for _, file := range files {
-		err := os.Remove(file)
+		err := os.RemoveAll(file)
 		if err != nil {
 			t.Fatal(err)
 		}

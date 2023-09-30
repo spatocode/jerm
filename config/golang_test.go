@@ -41,7 +41,13 @@ func TestGoGetVersionError(t *testing.T) {
 	r := NewGoRuntime(fakeCommandExecutor{})
 	g := r.(*Go)
 	v, err := g.getVersion()
-	assert.NotNil(err)
+	assert.Error(err)
+	assert.Equal(RuntimeGo, g.Name)
+	assert.Equal("", v)
+
+	fakeOutput = "go w e"
+	v, err = g.getVersion()
+	assert.EqualError(err, "encountered error on go version")
 	assert.Equal(RuntimeGo, g.Name)
 	assert.Equal("", v)
 }
@@ -61,6 +67,7 @@ func TestGoBuild(t *testing.T) {
 	fakeOutput = "go version go1.21.0 linux/amd64"
 	r := NewGoRuntime(fakeCommandExecutor{})
 	cfg := &Config{Name: "test", Stage: "env"}
+
 	p, f, err := r.Build(cfg)
 	assert.Nil(err)
 	assert.Equal("main", p)
@@ -73,7 +80,7 @@ func TestGoBuildError(t *testing.T) {
 	r := NewGoRuntime(fakeCommandExecutor{})
 	cfg := &Config{Name: "test", Stage: "env"}
 	p, f, err := r.Build(cfg)
-	assert.NotNil(err)
+	assert.Error(err)
 	assert.Equal("", p)
 	assert.Equal("", f)
 }
