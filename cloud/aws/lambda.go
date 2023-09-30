@@ -338,7 +338,8 @@ func (l *Lambda) Undeploy() error {
 	}
 
 	l.deleteLambdaFunction()
-	l.monitor.Clear()
+	groupName := fmt.Sprintf("/aws/lambda/%s", l.config.GetFunctionName())
+	l.monitor.Clear(groupName)
 
 	return nil
 }
