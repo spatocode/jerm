@@ -19,6 +19,7 @@ type Platform struct {
 	Memory   int          `json:"memory"`
 	Handler  string       `json:"handler"`
 	KeepWarm bool         `json:"keep_warm"`
+	CertArn  string       `json:"cert_arn"`
 }
 
 func (l *Platform) Defaults() error {

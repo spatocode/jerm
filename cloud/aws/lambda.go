@@ -94,6 +94,27 @@ func (l *Lambda) WithMonitor(monitor jerm.CloudMonitor) {
 	l.monitor = monitor
 }
 
+func (l *Lambda) Cert() error {
+	if l.config.Domain == "" {
+		return fmt.Errorf("unable to provide SSL certification. please specify a domain")
+	}
+
+	deployed, err := l.isAlreadyDeployed()
+	if err != nil {
+		return err
+	}
+
+	if !deployed {
+		return fmt.Errorf("application not yet deployed. please run `jerm deploy` to deploy")
+	}
+
+	if l.config.Platform.CertArn == "" {
+		return fmt.Errorf("unable to certify a domain. please provide a cert_arn")
+	}
+
+	return nil
+}
+
 // Build builds the deployment package for lambda
 func (l *Lambda) Build() (string, error) {
 	log.Debug("building Jerm project for Lambda...")

@@ -102,6 +102,12 @@ func (p *Project) Deploy() {
 	deployInfo(size, start, buildDuration)
 }
 
+// Cert manages SSL certificate for your domain
+func (p *Project) Cert() error {
+	p.cloud.Cert()
+	return nil
+}
+
 // Update updates the deployed project
 func (p *Project) Update(zipPath *string) error {
 	log.Debug("updating deployment...")

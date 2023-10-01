@@ -20,4 +20,5 @@ type CloudPlatform interface {
 	Rollback(int) error
 	Logs()
 	Invoke(string) error
+	Cert() error
 }

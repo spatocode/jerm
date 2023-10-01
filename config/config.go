@@ -35,6 +35,7 @@ type Config struct {
 	Region   string   `json:"region"`
 	Platform Platform `json:"platform"`
 	Dir      string   `json:"dir"`
+	Domain   string   `json:"domain"`
 }
 
 func (c *Config) GetFunctionName() string {
