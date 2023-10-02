@@ -11,8 +11,8 @@ import (
 	"github.com/spatocode/jerm/internal/log"
 )
 
-// statusCmd represents the status command
-var statusCmd = &cobra.Command{
+// logsCmd represents the logs command
+var logsCmd = &cobra.Command{
 	Use:   "logs",
 	Short: "Show deployment logs",
 	Long:  "Show deployment logs",
@@ -42,7 +42,7 @@ var statusCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.AddCommand(statusCmd)
+	rootCmd.AddCommand(logsCmd)
 
 	// Here you will define your flags and configuration settings.
 
