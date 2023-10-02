@@ -53,6 +53,21 @@ func (p *Project) SetPlatform(cloud CloudPlatform) {
 	p.cloud = cloud
 }
 
+// Build builds the application
+func (p *Project) Build() {
+	log.PrintfInfo("Building application %s...\n", p.config.Name)
+
+	start := time.Now()
+	_, size, err := p.packageProject()
+	if err != nil {
+		log.PrintError(err.Error())
+		return
+	}
+
+	buildDuration := time.Since(start)
+	fmt.Printf("%s %s %v %s, (%s)\n", log.Magenta("build:"), log.Green("completed"), log.White(size/1000000), log.White("MB"), log.White(buildDuration.Round(time.Second)))
+}
+
 // Invoke a function
 func (p *Project) Invoke(command string) {
 	err := p.cloud.Invoke(command)

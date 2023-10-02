@@ -11,10 +11,10 @@ import (
 	"github.com/spatocode/jerm/internal/log"
 )
 
-var deployCmd = &cobra.Command{
-	Use:   "deploy",
-	Short: "Deploy an application",
-	Long:  "Deploy an application",
+var buildCmd = &cobra.Command{
+	Use:   "build",
+	Short: "build an application",
+	Long:  "build an application",
 	Run: func(cmd *cobra.Command, args []string) {
 		jerm.Verbose(cmd)
 
@@ -36,10 +36,10 @@ var deployCmd = &cobra.Command{
 			return
 		}
 		p.SetPlatform(platform)
-		p.Deploy()
+		p.Build()
 	},
 }
 
 func init() {
-	rootCmd.AddCommand(deployCmd)
+	rootCmd.AddCommand(buildCmd)
 }
