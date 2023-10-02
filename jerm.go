@@ -53,6 +53,14 @@ func (p *Project) SetPlatform(cloud CloudPlatform) {
 	p.cloud = cloud
 }
 
+func (p *Project) Metrics() {
+	err := p.cloud.Metrics()
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+}
+
 // Invoke a function
 func (p *Project) Invoke(command string) {
 	err := p.cloud.Invoke(command)

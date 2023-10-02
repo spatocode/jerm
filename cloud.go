@@ -10,6 +10,7 @@ type CloudStorage interface {
 type CloudMonitor interface {
 	Watch()
 	Clear(string) error
+	Metrics() error
 }
 
 type CloudPlatform interface {
@@ -20,4 +21,5 @@ type CloudPlatform interface {
 	Rollback(int) error
 	Logs()
 	Invoke(string) error
+	Metrics() error
 }

@@ -94,6 +94,26 @@ func (l *Lambda) WithMonitor(monitor jerm.CloudMonitor) {
 	l.monitor = monitor
 }
 
+func (l *Lambda) Metrics() error {
+	functions, err := l.listLambdaVersions()
+	if err != nil {
+		var rnfErr *lambdaTypes.ResourceNotFoundException
+		if errors.As(err, &rnfErr) {
+			fmt.Errorf("cannot find lambda function. Make sure you've deployed.")
+		}
+		return err
+	}
+
+	function, err := l.getLambdaFunction(l.config.GetFunctionName())
+	if err != nil {
+		return err
+	}
+
+	l.monitor.Metrics()
+
+	return nil
+}
+
 // Build builds the deployment package for lambda
 func (l *Lambda) Build() (string, error) {
 	log.Debug("building Jerm project for Lambda...")

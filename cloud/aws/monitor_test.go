@@ -25,7 +25,7 @@ func TestNewCloudWatch(t *testing.T) {
 	awsC := aws.Config{}
 	s := NewCloudWatch(cfg, awsC)
 	assert.Equal(cfg, s.config)
-	assert.NotNil(s.client)
+	assert.NotNil(s.log)
 }
 
 func TestCloudWatchClear(t *testing.T) {
