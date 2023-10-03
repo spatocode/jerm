@@ -54,18 +54,18 @@ func (p *Project) SetPlatform(cloud CloudPlatform) {
 }
 
 // Build builds the application
-func (p *Project) Build() {
+func (p *Project) Build() error {
 	log.PrintfInfo("Building application %s...\n", p.config.Name)
 
 	start := time.Now()
 	_, size, err := p.packageProject()
 	if err != nil {
-		log.PrintError(err.Error())
-		return
+		return err
 	}
 
 	buildDuration := time.Since(start)
 	fmt.Printf("%s %s %v %s, (%s)\n", log.Magenta("build:"), log.Green("completed"), log.White(size/1000000), log.White("MB"), log.White(buildDuration.Round(time.Second)))
+	return nil
 }
 
 // Invoke a function
@@ -171,6 +171,10 @@ func (p *Project) Rollback(steps int) {
 // packageProject packages a project for deployment
 func (p *Project) packageProject() (*string, int64, error) {
 	log.Debug("packaging project...")
+
+	if p.cloud == nil {
+		return nil, 0, fmt.Errorf("unable to build app. please set your cloud platform")
+	}
 
 	dir, err := p.cloud.Build()
 	if err != nil {

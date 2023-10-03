@@ -36,7 +36,10 @@ var buildCmd = &cobra.Command{
 			return
 		}
 		p.SetPlatform(platform)
-		p.Build()
+		err = p.Build()
+		if err != nil {
+			log.PrintError(err)
+		}
 	},
 }
 
