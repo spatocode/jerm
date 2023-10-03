@@ -59,6 +59,13 @@ func TestReadConfig(t *testing.T) {
 	assert.Equal("/home/ubuntu/bodystats", c.Dir)
 }
 
+func TestReadConfigError(t *testing.T) {
+	assert := assert.New(t)
+	c, err := ReadConfig("../unknown/assets/tests/jerm.json")
+	assert.Nil(c)
+	assert.EqualError(err, "open ../unknown/assets/tests/jerm.json: no such file or directory")
+}
+
 func TestIgnoredFiles(t *testing.T) {
 	assert := assert.New(t)
 	files, err := ReadIgnoredFiles("../assets/tests/.jermignore")

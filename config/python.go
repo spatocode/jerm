@@ -137,7 +137,7 @@ func (p *Python) Build(config *Config) (string, string, error) {
 			log.Debug(err.Error())
 		}
 		handler := strings.ReplaceAll(p.handlerTemplate, ".wsgi", djangoProject+".wsgi")
-		function, err = p.createFunctionHandler(config, handlerFilepath, handler)
+		function, err = p.createFunctionHandler(handlerFilepath, []byte(handler))
 		if err != nil {
 			return "", "", err
 		}
@@ -147,7 +147,7 @@ func (p *Python) Build(config *Config) (string, string, error) {
 }
 
 // createFunctionHandler creates a serverless function handler file
-func (p *Python) createFunctionHandler(config *Config, file, handler string) (string, error) {
+func (p *Python) createFunctionHandler(file string, content []byte) (string, error) {
 	log.Debug("creating lambda handler...")
 	f, err := os.Create(file)
 	if err != nil {
@@ -155,7 +155,7 @@ func (p *Python) createFunctionHandler(config *Config, file, handler string) (st
 	}
 	defer f.Close()
 
-	_, err = f.Write([]byte(handler))
+	_, err = f.Write(content)
 	if err != nil {
 		return "", err
 	}
@@ -249,7 +249,7 @@ func (p *Python) downloadDependencies(url, filename, dir string) error {
 
 // Extracts python wheel from wheelPath to outputDir
 func (p *Python) extractWheel(wheelPath, outputDir string) error {
-	log.Debug("extracting python wheel...")
+	log.Debug(fmt.Sprintf("extracting python wheel %s...", wheelPath))
 	var eg errgroup.Group
 
 	reader, err := zip.OpenReader(wheelPath)
@@ -261,7 +261,7 @@ func (p *Python) extractWheel(wheelPath, outputDir string) error {
 	for _, file := range reader.File {
 		func(file *zip.File) {
 			eg.Go(func() error {
-				os.MkdirAll(filepath.Join(outputDir, filepath.Dir(file.Name)), 0755)
+				err = os.MkdirAll(filepath.Join(outputDir, filepath.Dir(file.Name)), 0755)
 				if err != nil {
 					return err
 				}

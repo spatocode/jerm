@@ -2,8 +2,10 @@ package config
 
 import (
 	"fmt"
+	"path/filepath"
 	"testing"
 
+	"github.com/spatocode/jerm/internal/utils"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -42,7 +44,7 @@ func TestPythonGetVersionError(t *testing.T) {
 	r := NewPythonRuntime(fakeCommandExecutor{})
 	p := r.(*Python)
 	v, err := p.getVersion()
-	assert.NotNil(err)
+	assert.Error(err)
 	assert.Equal(RuntimePython, p.Name)
 	assert.Equal("", v)
 }
@@ -69,6 +71,7 @@ func TestPythonLambdaRuntime(t *testing.T) {
 
 func TestPythonIsDjango(t *testing.T) {
 	assert := assert.New(t)
+
 	fakeOutput = "Python 3.9.0"
 	r := NewPythonRuntime(fakeCommandExecutor{})
 	p := r.(*Python)
@@ -78,4 +81,35 @@ func TestPythonIsDjango(t *testing.T) {
 	is := p.IsDjango()
 	assert.True(is)
 	helperCleanup(t, []string{managePy})
+}
+
+func TestPythonCreateFunctionHandler(t *testing.T) {
+	assert := assert.New(t)
+
+	fakeOutput = "Python 3.9.0"
+	r := NewPythonRuntime(fakeCommandExecutor{})
+	p := r.(*Python)
+
+	handlerFile := filepath.Join("../assets/tests", "handler.py")
+	handler, err := p.createFunctionHandler(handlerFile, []byte("This is a test handler"))
+
+	assert.Nil(err)
+	assert.Equal("handler.handler", handler)
+	helperCleanup(t, []string{handlerFile})
+}
+
+func TestPythonExtractWheel(t *testing.T) {
+	assert := assert.New(t)
+
+	fakeOutput = "Python 3.9.0"
+	r := NewPythonRuntime(fakeCommandExecutor{})
+	p := r.(*Python)
+
+	file1 := "../assets/tests/test"
+	file2 := "../assets/tests/test.txt"
+	p.extractWheel("../assets/tests/test.whl", "../assets/tests")
+	assert.True(utils.FileExists(file1))
+	assert.True(utils.FileExists(file2))
+
+	helperCleanup(t, []string{file1, file2})
 }
