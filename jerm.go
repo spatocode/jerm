@@ -54,9 +54,9 @@ func (p *Project) SetPlatform(cloud CloudPlatform) {
 }
 
 func (p *Project) Metrics() {
-	err := p.cloud.Metrics()
+	metrics, err := p.cloud.Metrics()
 	if err != nil {
-		fmt.Println(err)
+		log.PrintError(err)
 		return
 	}
 }

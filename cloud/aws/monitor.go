@@ -20,13 +20,13 @@ import (
 
 const (
 	InvocationMetric = "Invocations"
-	ErrorMetric = "Errors"
+	ErrorMetric      = "Errors"
 )
 
 // CloudWatch is the AWS Cloudwatch operations
 type CloudWatch struct {
 	config *config.Config
-	log *cloudwatchlogs.Client
+	log    *cloudwatchlogs.Client
 	client *cloudwatch.Client
 }
 
@@ -34,7 +34,7 @@ type CloudWatch struct {
 func NewCloudWatch(config *config.Config, awsConfig aws.Config) *CloudWatch {
 	return &CloudWatch{
 		config: config,
-		log: cloudwatchlogs.NewFromConfig(awsConfig),
+		log:    cloudwatchlogs.NewFromConfig(awsConfig),
 		client: cloudwatch.NewFromConfig(awsConfig),
 	}
 }
@@ -171,15 +171,15 @@ func (c *CloudWatch) Clear(name string) error {
 func (c *CloudWatch) getMetrics(name string) (*cloudwatch.GetMetricStatisticsOutput, error) {
 	startTime := time.Now().UTC().Add(-24 * time.Hour)
 	stats, err := c.client.GetMetricStatistics(context.TODO(), &cloudwatch.GetMetricStatisticsInput{
-		Namespace: aws.String("AWS/Lambda"),
+		Namespace:  aws.String("AWS/Lambda"),
 		MetricName: aws.String(name),
-		StartTime: aws.Time(startTime),
-		EndTime: aws.Time(time.Now().UTC()),
-		Period: aws.Int32(1440),
+		StartTime:  aws.Time(startTime),
+		EndTime:    aws.Time(time.Now().UTC()),
+		Period:     aws.Int32(1440),
 		Statistics: []cwTypes.Statistic{cwTypes.StatisticSum},
 		Dimensions: []cwTypes.Dimension{
 			{
-				Name: aws.String("FunctionName"),
+				Name:  aws.String("FunctionName"),
 				Value: aws.String(c.config.GetFunctionName()),
 			},
 		},
@@ -191,19 +191,24 @@ func (c *CloudWatch) getMetrics(name string) (*cloudwatch.GetMetricStatisticsOut
 }
 
 // Metrics shows CloudWatch metrics
-func (c *CloudWatch) Metrics() error {
+func (c *CloudWatch) Metrics() (map[string]string, error) {
+	metrics := make(map[string]string)
 	res, err := c.getMetrics(InvocationMetric)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	functionInvocations := res.Datapoints[0].Sum
 
 	res, err = c.getMetrics(ErrorMetric)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	functionErrors := res.Datapoints[0].Sum
 	errorRate := *functionErrors / *functionInvocations * 100
 
-	return err
+	metrics["errorRate"] = fmt.Sprintf("%f", errorRate)
+	metrics["functionInvocations"] = fmt.Sprintf("%f", *functionInvocations)
+	metrics["functionErrors"] = fmt.Sprintf("%f", *functionErrors)
+
+	return nil, err
 }

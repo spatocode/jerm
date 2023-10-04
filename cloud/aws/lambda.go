@@ -94,24 +94,44 @@ func (l *Lambda) WithMonitor(monitor jerm.CloudMonitor) {
 	l.monitor = monitor
 }
 
-func (l *Lambda) Metrics() error {
+func (l *Lambda) Metrics() (map[string]string, error) {
 	functions, err := l.listLambdaVersions()
 	if err != nil {
 		var rnfErr *lambdaTypes.ResourceNotFoundException
 		if errors.As(err, &rnfErr) {
-			fmt.Errorf("cannot find lambda function. Make sure you've deployed.")
+			return nil, fmt.Errorf("cannot find lambda function. Make sure you've deployed")
 		}
-		return err
+		return nil, err
 	}
 
 	function, err := l.getLambdaFunction(l.config.GetFunctionName())
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	l.monitor.Metrics()
+	metrics, err := l.monitor.Metrics()
+	if err != nil {
+		return nil, err
+	}
 
-	return nil
+	apiUrl, err := l.apigateway.getApiUrl()
+	if err != nil {
+		return nil, err
+	}
+
+	conf := function.Configuration
+	metrics["functionArn"] = *conf.FunctionArn
+	metrics["handler"] = *conf.Handler
+	metrics["codeSize"] = fmt.Sprintf("%d", conf.CodeSize)
+	metrics["version"] = *conf.Version
+	metrics["memorySize"] = fmt.Sprintf("%d", *conf.MemorySize)
+	metrics["roleArn"] = *conf.Role
+	metrics["versions"] = fmt.Sprintf("%d", len(functions))
+	metrics["lastModified"] = *conf.LastModified
+	metrics["timeout"] = fmt.Sprintf("%d", *conf.Timeout)
+	metrics["apigatewayUrl"] = apiUrl
+
+	return metrics, nil
 }
 
 // Build builds the deployment package for lambda

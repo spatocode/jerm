@@ -10,7 +10,7 @@ type CloudStorage interface {
 type CloudMonitor interface {
 	Watch()
 	Clear(string) error
-	Metrics() error
+	Metrics() (map[string]string, error)
 }
 
 type CloudPlatform interface {
@@ -21,5 +21,5 @@ type CloudPlatform interface {
 	Rollback(int) error
 	Logs()
 	Invoke(string) error
-	Metrics() error
+	Metrics() (map[string]string, error)
 }

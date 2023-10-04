@@ -136,6 +136,15 @@ func (a *ApiGateway) deploy(apiId *string) (string, error) {
 	return fmt.Sprintf("https://%s.execute-api.%s.amazonaws.com/%s\n", *apiId, a.awsConfig.Region, a.config.Stage), nil
 }
 
+func (a *ApiGateway) getApiUrl() (string, error) {
+	apiId, err := a.getApiId()
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("https://%s.execute-api.%s.amazonaws.com/%s\n", *apiId, a.awsConfig.Region, a.config.Stage), nil
+}
+
 func (a *ApiGateway) getRestApis() ([]*string, error) {
 	var apiIds []*string
 	resp, err := a.client.GetRestApis(context.TODO(), &apigateway.GetRestApisInput{
