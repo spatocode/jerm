@@ -28,13 +28,13 @@ var manageCmd = &cobra.Command{
 
 		cfg, err := jerm.Configure(jerm.DefaultConfigFile)
 		if err != nil {
-			log.PrintError(err.Error())
+			log.PrintError(err)
 			return
 		}
 
 		platform, err := aws.NewLambda(cfg)
 		if err != nil {
-			log.PrintError(err.Error())
+			log.PrintError(err)
 			return
 		}
 
@@ -47,12 +47,16 @@ var manageCmd = &cobra.Command{
 
 		p, err := jerm.New(cfg)
 		if err != nil {
-			log.PrintError(err.Error())
+			log.PrintError(err)
 			return
 		}
 
 		p.SetPlatform(platform)
-		p.Invoke(strings.Join(args, " "))
+		err = p.Invoke(strings.Join(args, " "))
+		if err != nil {
+			log.PrintError(err)
+			return
+		}
 	},
 }
 

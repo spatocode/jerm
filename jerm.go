@@ -54,15 +54,16 @@ func (p *Project) SetPlatform(cloud CloudPlatform) {
 }
 
 // Invoke a function
-func (p *Project) Invoke(command string) {
+func (p *Project) Invoke(command string) error {
 	err := p.cloud.Invoke(command)
 	if err != nil {
-		log.PrintError(err.Error())
+		return err
 	}
+	return nil
 }
 
 // Deploy deploys the project to the cloud
-func (p *Project) Deploy() {
+func (p *Project) Deploy() error {
 	log.PrintfInfo("Deploying project %s...\n", p.config.Name)
 
 	start := time.Now()
@@ -75,8 +76,7 @@ func (p *Project) Deploy() {
 
 	file, size, err := p.packageProject()
 	if err != nil {
-		log.PrintError(err.Error())
-		return
+		return err
 	}
 	defer os.RemoveAll(*file)
 
@@ -84,22 +84,19 @@ func (p *Project) Deploy() {
 
 	alreadyDeployed, err := p.cloud.Deploy(*file)
 	if err != nil {
-		log.PrintError(err.Error())
-		return
+		return err
 	}
 
 	if alreadyDeployed {
 		log.Debug("project already deployed. updating...")
 		err = p.Update(file)
 		if err != nil {
-			log.PrintError(err.Error())
-			return
+			return err
 		}
-		deployInfo(size, start, buildDuration)
-		return
 	}
 
 	deployInfo(size, start, buildDuration)
+	return nil
 }
 
 // Update updates the deployed project
@@ -125,32 +122,33 @@ func (p *Project) Update(zipPath *string) error {
 }
 
 // Undeploy terminates a deployment
-func (p *Project) Undeploy() {
+func (p *Project) Undeploy() error {
 	log.PrintInfo("Undeploying project...")
 
 	start := time.Now()
 	err := p.cloud.Undeploy()
 	if err != nil {
-		log.PrintError(err.Error())
-		return
+		return err
 	}
 
 	duration := time.Since(start)
 	fmt.Printf("%s %s (%s)\n", log.Magenta("undeploy:"), log.Green("completed"), log.White(duration.Round(time.Second)))
+	return err
 }
 
 // Rollback rolls back a deployment to previous versions
-func (p *Project) Rollback(steps int) {
+func (p *Project) Rollback(steps int) error {
 	log.PrintInfo("Rolling back deployment...")
 
 	start := time.Now()
 	err := p.cloud.Rollback(steps)
 	if err != nil {
-		log.PrintError(err.Error())
+		return err
 	}
 
 	duration := time.Since(start)
 	fmt.Printf("%s %s (%s)\n", log.Magenta("rollback:"), log.Green("completed"), log.White(duration.Round(time.Second)))
+	return nil
 }
 
 // packageProject packages a project for deployment

@@ -49,7 +49,10 @@ var undeployCmd = &cobra.Command{
 		if ans != "y" {
 			return
 		}
-		p.Undeploy()
+		err = p.Undeploy()
+		if err != nil {
+			log.PrintError(err.Error())
+		}
 	},
 }
 

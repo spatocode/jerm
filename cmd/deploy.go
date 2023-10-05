@@ -20,23 +20,27 @@ var deployCmd = &cobra.Command{
 
 		cfg, err := jerm.Configure(jerm.DefaultConfigFile)
 		if err != nil {
-			log.PrintError(err.Error())
+			log.PrintError(err)
 			return
 		}
 
 		p, err := jerm.New(cfg)
 		if err != nil {
-			log.PrintError(err.Error())
+			log.PrintError(err)
 			return
 		}
 
 		platform, err := aws.NewLambda(cfg)
 		if err != nil {
-			log.PrintError(err.Error())
+			log.PrintError(err)
 			return
 		}
 		p.SetPlatform(platform)
-		p.Deploy()
+
+		err = p.Deploy()
+		if err != nil {
+			log.PrintError(err)
+		}
 	},
 }
 
